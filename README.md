@@ -7,4 +7,4 @@ Ici on commit nos avancer ;)
 
 Je vous laisse vous débrouiller pour l'app bureau
 
-L'api, et tout ce qu'il faut pour faire le site web ce trouvera içi
+L'api, et le site vont être héberger sur une machine virtuel bientôt disponible
