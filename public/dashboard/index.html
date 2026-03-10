@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tableau de bord - Signalements</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h2>⚖️ Signalements</h2>
+                <button class="btn-new" id="btnNewReport">+ Nouveau signalement</button>
+            </div>
+            <nav class="sidebar-nav" id="sidebarNav"></nav>
+            <div class="my-reports">
+                <h3>Mes signalements</h3>
+                <ul class="reports-list" id="reportsList"></ul>
+            </div>
+            <div class="sidebar-footer">
+                <button id="btnLogout">Déconnexion</button>
+            </div>
+        </aside>
+
+        <main class="main-content" id="mainContent">
+            <div class="welcome-message">
+                <p>Sélectionnez un signalement ou créez-en un nouveau.</p>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js" type="module"></script>
+</body>
+</html>

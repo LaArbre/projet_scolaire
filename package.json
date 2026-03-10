@@ -1,8 +1,7 @@
 {
-  "name": "gitlocker",
+  "name": "legaltech-api",
   "version": "1.0.0",
-  "type": "commonjs",
-  "description": "Plateforme d'hébergement de projets Git isolés par pods",
+  "description": "API pour la gestion de signalements internes",
   "main": "api/server.js",
   "scripts": {
     "start": "node api/server.js",
@@ -19,14 +18,11 @@
     "express-rate-limit": "^7.1.5",
     "express-session": "^1.17.3",
     "helmet": "^7.1.0",
+    "multer": "^1.4.5-lts.1",
     "mysql2": "^3.6.5",
-    "validator": "^13.11.0",
-    "dockerode": "^4.0.2"
+    "validator": "^13.11.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC"
+  }
 }

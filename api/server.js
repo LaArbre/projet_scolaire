@@ -1,4 +1,4 @@
-require('dotenv').config({ path: __dirname + '/.env', override: true });
+require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
@@ -11,7 +11,13 @@ const { initDB } = require('./config/db');
 const { createSessionStore, getSessionConfig } = require('./config/session');
 
 const limiter = require('./middlewares/rateLimit');
+
 const authRoutes = require('./routes/auth');
+const reportsRoutes = require('./routes/reports');
+const messagesRoutes = require('./routes/messages');
+const attachmentsRoutes = require('./routes/attachments');
+const adminRoutes = require('./routes/admin');
+const auditRoutes = require('./routes/audit');
 
 const app = express();
 
@@ -29,9 +35,9 @@ app.use(helmet({
 }));
 
 app.use(cors({
-    origin: ['https://192.168.1.92', 'http://192.168.1.92'],
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+    methods: ['GET', 'POST', 'PATCH', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token']
 }));
 
@@ -61,16 +67,25 @@ async function startServer() {
         });
 
         app.use('/api', authRoutes);
+        app.use('/api/reports', reportsRoutes);
+        app.use('/api/reports/:reportId/messages', messagesRoutes);
+        app.use('/api/attachments', attachmentsRoutes);
+        app.use('/api/admin', adminRoutes);
+        app.use('/api/audit-logs', auditRoutes);
 
         app.use(express.static(path.join(__dirname, '../public')));
 
-        const PORT = 3000;
+        app.get('*', (req, res) => {
+            res.sendFile(path.join(__dirname, '../public/index.html'));
+        });
+
+        const PORT = process.env.PORT || 3000;
         app.listen(PORT, '127.0.0.1', () => {
-            console.log(`Node.js écoute sur http://127.0.0.1:${PORT}`);
+            console.log(`🚀 Serveur démarré sur http://127.0.0.1:${PORT}`);
         });
 
     } catch (err) {
-        console.error('Erreur lors de l\'initialisation :', err);
+        console.error('❌ Erreur lors de l\'initialisation :', err);
         process.exit(1);
     }
 }

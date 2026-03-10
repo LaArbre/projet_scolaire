@@ -24,7 +24,7 @@ function getSessionConfig(store) {
         resave: false,
         saveUninitialized: false,
         cookie: {
-            secure: true,
+            secure: process.env.NODE_ENV === 'production',
             httpOnly: true,
             maxAge: 86400000,
             sameSite: 'lax'

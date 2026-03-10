@@ -53,7 +53,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
         if (data.success) {
             animateFields(form, data.fields, 'success');
             setTimeout(() => {
-                window.location.href = '/index/'; /* Insérer ici la redirection, par exemple : '/board/'*/
+                window.location.href = '/dashboard/';
             }, 500);
         } else if (data.error) {
             animateFields(form, data.fields, 'error');
@@ -108,7 +108,7 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         if (data.success) {
             animateFields(form, data.fields, 'success');
             setTimeout(() => {
-                window.location.href = '/whiteboard/';
+                window.location.href = '/dashboard/';
             }, 2000);
         } else if (data.error) {
             animateFields(form, data.fields, 'error');
