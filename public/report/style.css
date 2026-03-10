@@ -1,0 +1,11 @@
+body{
+font-family: Arial;
+padding:40px;
+}
+
+textarea{
+width:300px;
+height:150px;
+display:block;
+margin:10px 0;
+}

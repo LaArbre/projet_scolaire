@@ -53,7 +53,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
         if (data.success) {
             animateFields(form, data.fields, 'success');
             setTimeout(() => {
-                window.location.href = '/board/'; /* Insérer ici la redirection, par exemple : '/board/'*/
+                window.location.href = '/index/'; /* Insérer ici la redirection, par exemple : '/board/'*/
             }, 500);
         } else if (data.error) {
             animateFields(form, data.fields, 'error');
