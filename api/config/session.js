@@ -1,33 +1,29 @@
-const session = require('express-session');
+const session    = require('express-session');
 const MySQLStore = require('express-mysql-session')(session);
 
 function createSessionStore(pool) {
     return new MySQLStore({
-        expiration: 86400000,
+        expiration:          86400000,
         createDatabaseTable: false,
         schema: {
-            tableName: 'sessions',
-            columnNames: {
-                session_id: 'session_id',
-                expires: 'expires',
-                data: 'data'
-            }
+            tableName:   'sessions',
+            columnNames: { session_id: 'session_id', expires: 'expires', data: 'data' }
         }
     }, pool);
 }
 
 function getSessionConfig(store) {
     return {
-        key: 'session_id',
-        secret: process.env.SESSION_SECRET,
-        store: store,
-        resave: false,
+        key:              'sid',
+        secret:           process.env.SESSION_SECRET,
+        store,
+        resave:           false,
         saveUninitialized: false,
         cookie: {
-            secure: process.env.NODE_ENV === 'production',
+            secure:   process.env.NODE_ENV === 'production',
             httpOnly: true,
-            maxAge: 86400000,
-            sameSite: 'lax'
+            maxAge:   86400000,
+            sameSite: 'lax',
         }
     };
 }

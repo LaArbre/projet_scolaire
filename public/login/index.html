@@ -3,81 +3,75 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Connexion / Inscription</title>
+    <title>Tableau de bord — Signalements</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <div class="card" id="card">
-            <div class="form login-form">
-                <div class="light-orb"></div>
-                <h2>CONNEXION</h2>
-                <form id="loginForm">
-                    <div class="input-group">
-                        <span class="field-decoration">
-                            <span class="field-shape email-shape"></span>
-                        </span>
-                        <input type="email" name="email" placeholder="EMAIL">
-                    </div>
-                    <div class="input-group">
-                        <span class="field-decoration">
-                            <span class="field-shape password-shape"></span>
-                        </span>
-                        <input type="password" name="password" placeholder="MOT DE PASSE">
-                    </div>
-                    <button type="submit">ACCÉDER</button>
-                </form>
-                <div class="toggle-link">
-                    <a href="#" onclick="toggleCard(); return false;">
-                        <span class="toggle-decoration"></span>
-                        CRÉER UN COMPTE
-                        <span class="toggle-decoration"></span>
-                    </a>
-                </div>
+    <div class="layout">
+
+        <!-- ── Sidebar ─────────────────────────────────────────────────── -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-brand">
+                <div class="brand-icon">⚖</div>
+                <span class="brand-name">HRCompliance</span>
             </div>
 
-            <div class="form register-form">
-                <div class="light-orb"></div>
-                <h2>INSCRIPTION</h2>
-                <form id="registerForm">
-                    <div class="input-group">
-                        <span class="field-decoration">
-                            <span class="field-shape user-shape"></span>
-                        </span>
-                        <input type="text" name="name" placeholder="NOM COMPLET">
-                    </div>
-                    <div class="input-group">
-                        <span class="field-decoration">
-                            <span class="field-shape email-shape"></span>
-                        </span>
-                        <input type="email" name="email" placeholder="EMAIL">
-                    </div>
-                    <div class="input-group">
-                        <span class="field-decoration">
-                            <span class="field-shape password-shape"></span>
-                        </span>
-                        <input type="password" name="password" placeholder="MOT DE PASSE">
-                    </div>
-                    <div class="input-group">
-                        <span class="field-decoration">
-                            <span class="field-shape confirm-shape"></span>
-                        </span>
-                        <input type="password" name="confirm" placeholder="CONFIRMATION">
-                    </div>
-                    <button type="submit">S'INSCRIRE</button>
-                </form>
-                <div class="toggle-link">
-                    <a href="#" onclick="toggleCard(); return false;">
-                        <span class="toggle-decoration"></span>
-                        SE CONNECTER
-                        <span class="toggle-decoration"></span>
-                    </a>
+            <!-- Navigation rôle-dépendante -->
+            <nav class="sidebar-nav" id="sidebarNav"></nav>
+
+            <!-- Mes signalements -->
+            <div class="sidebar-section">
+                <div class="sidebar-section-header">
+                    <span>Mes signalements</span>
+                    <button class="btn-icon" id="btnNewReport" title="Nouveau signalement">＋</button>
                 </div>
+                <ul class="reports-list" id="reportsList">
+                    <li class="report-item-empty">Aucun signalement</li>
+                </ul>
+            </div>
+
+            <!-- Footer sidebar -->
+            <div class="sidebar-footer">
+                <div class="user-chip" id="userChip">
+                    <div class="user-avatar" id="userAvatar">?</div>
+                    <div class="user-info">
+                        <span class="user-name" id="userName">Chargement…</span>
+                        <span class="user-role" id="userRole"></span>
+                    </div>
+                    <button class="btn-logout" id="btnLogout" title="Déconnexion">⏻</button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- ── Contenu principal ───────────────────────────────────────── -->
+        <main class="main" id="mainContent">
+            <div class="welcome-screen">
+                <div class="welcome-icon">📋</div>
+                <h2>Bienvenue sur le portail</h2>
+                <p>Sélectionnez un signalement dans la liste ou créez-en un nouveau.</p>
+                <button class="btn-primary" id="btnNewReportWelcome">
+                    ＋ Nouveau signalement
+                </button>
+            </div>
+        </main>
+
+    </div>
+
+    <!-- Modal de confirmation générique -->
+    <div class="modal-overlay hidden" id="modalOverlay">
+        <div class="modal" id="modal">
+            <h3 id="modalTitle">Confirmation</h3>
+            <p id="modalMessage"></p>
+            <div class="modal-actions">
+                <button class="btn-ghost" id="modalCancel">Annuler</button>
+                <button class="btn-danger" id="modalConfirm">Confirmer</button>
             </div>
         </div>
     </div>
 
-    <script src="script.js"></script>
-    <script type="module" src="../global/script.js"></script>
+    <script type="module" src="script.js"></script>
 </body>
 </html>

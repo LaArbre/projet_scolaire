@@ -4,5 +4,8 @@ export async function getSession() {
 }
 
 export async function logout() {
-    await fetch('/api/logout', { method: 'POST', credentials: 'include' });
+    await fetch('/api/logout', {
+        method:      'POST',
+        credentials: 'include',
+    });
 }

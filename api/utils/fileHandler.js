@@ -1,32 +1,55 @@
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs').promises;
+const path   = require('path');
+const fs     = require('fs').promises;
 const crypto = require('crypto');
 
+// Dossier de stockage — HORS du dossier public pour éviter l'accès direct
+const UPLOAD_DIR = path.resolve(__dirname, '../../uploads');
+
+// Types et extensions autorisés (double vérification MIME + extension)
+const ALLOWED = {
+    'image/jpeg':       ['.jpg', '.jpeg'],
+    'image/png':        ['.png'],
+    'image/gif':        ['.gif'],
+    'application/pdf':  ['.pdf'],
+    'text/plain':       ['.txt'],
+};
+
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        const uploadDir = path.join(__dirname, '../../uploads');
-        fs.mkdir(uploadDir, { recursive: true }).then(() => cb(null, uploadDir));
+    destination: async (req, file, cb) => {
+        await fs.mkdir(UPLOAD_DIR, { recursive: true });
+        cb(null, UPLOAD_DIR);
     },
     filename: (req, file, cb) => {
-        const uniqueName = crypto.randomBytes(16).toString('hex') + path.extname(file.originalname);
-        cb(null, uniqueName);
-    }
+        // Nom aléatoire cryptographique + extension d'origine (validée ci-dessous)
+        const ext    = path.extname(file.originalname).toLowerCase();
+        const unique = crypto.randomBytes(16).toString('hex') + ext;
+        cb(null, unique);
+    },
 });
 
 const fileFilter = (req, file, cb) => {
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf', 'text/plain'];
-    if (allowedTypes.includes(file.mimetype)) {
-        cb(null, true);
-    } else {
-        cb(new Error('Type de fichier non autorisé'), false);
+    const ext          = path.extname(file.originalname).toLowerCase();
+    const allowedExts  = ALLOWED[file.mimetype];
+
+    if (!allowedExts || !allowedExts.includes(ext)) {
+        return cb(new Error(`Type de fichier non autorisé : ${file.mimetype} / ${ext}`), false);
     }
+    cb(null, true);
 };
 
 const upload = multer({
     storage,
     fileFilter,
-    limits: { fileSize: 10 * 1024 * 1024 }
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10 Mo max
 });
 
-module.exports = { upload };
+/**
+ * Vérifie qu'un chemin de fichier est bien dans UPLOAD_DIR (anti path traversal)
+ */
+function isSafeFilePath(filePath) {
+    const resolved = path.resolve(filePath);
+    return resolved.startsWith(UPLOAD_DIR);
+}
+
+module.exports = { upload, UPLOAD_DIR, isSafeFilePath };
