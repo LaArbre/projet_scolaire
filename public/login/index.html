@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connexion / Inscription</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="card" id="card">
+            <div class="form login-form">
+                <div class="light-orb"></div>
+                <h2>CONNEXION</h2>
+                <form id="loginForm">
+                    <div class="input-group">
+                        <span class="field-decoration">
+                            <span class="field-shape email-shape"></span>
+                        </span>
+                        <input type="email" name="email" placeholder="EMAIL">
+                    </div>
+                    <div class="input-group">
+                        <span class="field-decoration">
+                            <span class="field-shape password-shape"></span>
+                        </span>
+                        <input type="password" name="password" placeholder="MOT DE PASSE">
+                    </div>
+                    <button type="submit">ACCÉDER</button>
+                </form>
+                <div class="toggle-link">
+                    <a href="#" onclick="toggleCard(); return false;">
+                        <span class="toggle-decoration"></span>
+                        CRÉER UN COMPTE
+                        <span class="toggle-decoration"></span>
+                    </a>
+                </div>
+            </div>
+
+            <div class="form register-form">
+                <div class="light-orb"></div>
+                <h2>INSCRIPTION</h2>
+                <form id="registerForm">
+                    <div class="input-group">
+                        <span class="field-decoration">
+                            <span class="field-shape user-shape"></span>
+                        </span>
+                        <input type="text" name="name" placeholder="NOM COMPLET">
+                    </div>
+                    <div class="input-group">
+                        <span class="field-decoration">
+                            <span class="field-shape email-shape"></span>
+                        </span>
+                        <input type="email" name="email" placeholder="EMAIL">
+                    </div>
+                    <div class="input-group">
+                        <span class="field-decoration">
+                            <span class="field-shape password-shape"></span>
+                        </span>
+                        <input type="password" name="password" placeholder="MOT DE PASSE">
+                    </div>
+                    <div class="input-group">
+                        <span class="field-decoration">
+                            <span class="field-shape confirm-shape"></span>
+                        </span>
+                        <input type="password" name="confirm" placeholder="CONFIRMATION">
+                    </div>
+                    <button type="submit">S'INSCRIRE</button>
+                </form>
+                <div class="toggle-link">
+                    <a href="#" onclick="toggleCard(); return false;">
+                        <span class="toggle-decoration"></span>
+                        SE CONNECTER
+                        <span class="toggle-decoration"></span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script type="module" src="../global/script.js"></script>
+</body>
+</html>
