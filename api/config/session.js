@@ -1,5 +1,5 @@
-const MySQLStore = require('express-mysql-session')(session);
 const session = require('express-session');
+const MySQLStore = require('express-mysql-session')(session);
 require('dotenv').config();
 
 function createSessionStore(pool) {
