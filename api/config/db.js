@@ -5,20 +5,19 @@ let pool;
 
 async function initDB() {
     pool = await mysql.createPool({
-        host:               process.env.DB_HOST,
-        user:               process.env.DB_USER,
-        password:           process.env.DB_PASSWORD,
-        database:           process.env.DB_NAME,
+        host: process.env.DB_HOST,
+        user: process.env.DB_USER,
+        password: process.env.DB_PASSWORD,
+        database: process.env.DB_NAME,
         waitForConnections: true,
-        connectionLimit:    10,
-        queueLimit:         0,
+        connectionLimit: 10,
+        queueLimit: 0,
     });
-    console.log('✅ MySQL connecté');
     return pool;
 }
 
 function getPool() {
-    if (!pool) throw new Error('Pool non initialisé — appelez initDB() d\'abord');
+    if (!pool) throw new Error('Pool non initialisé');
     return pool;
 }
 

@@ -1,18 +1,16 @@
 const multer = require('multer');
-const path   = require('path');
-const fs     = require('fs').promises;
+const path = require('path');
+const fs = require('fs').promises;
 const crypto = require('crypto');
 
-// Dossier de stockage — HORS du dossier public pour éviter l'accès direct
 const UPLOAD_DIR = path.resolve(__dirname, '../../uploads');
 
-// Types et extensions autorisés (double vérification MIME + extension)
 const ALLOWED = {
-    'image/jpeg':       ['.jpg', '.jpeg'],
-    'image/png':        ['.png'],
-    'image/gif':        ['.gif'],
-    'application/pdf':  ['.pdf'],
-    'text/plain':       ['.txt'],
+    'image/jpeg': ['.jpg', '.jpeg'],
+    'image/png': ['.png'],
+    'image/gif': ['.gif'],
+    'application/pdf': ['.pdf'],
+    'text/plain': ['.txt'],
 };
 
 const storage = multer.diskStorage({
@@ -21,16 +19,15 @@ const storage = multer.diskStorage({
         cb(null, UPLOAD_DIR);
     },
     filename: (req, file, cb) => {
-        // Nom aléatoire cryptographique + extension d'origine (validée ci-dessous)
-        const ext    = path.extname(file.originalname).toLowerCase();
+        const ext = path.extname(file.originalname).toLowerCase();
         const unique = crypto.randomBytes(16).toString('hex') + ext;
         cb(null, unique);
     },
 });
 
 const fileFilter = (req, file, cb) => {
-    const ext          = path.extname(file.originalname).toLowerCase();
-    const allowedExts  = ALLOWED[file.mimetype];
+    const ext = path.extname(file.originalname).toLowerCase();
+    const allowedExts = ALLOWED[file.mimetype];
 
     if (!allowedExts || !allowedExts.includes(ext)) {
         return cb(new Error(`Type de fichier non autorisé : ${file.mimetype} / ${ext}`), false);
@@ -41,12 +38,9 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({
     storage,
     fileFilter,
-    limits: { fileSize: 10 * 1024 * 1024 }, // 10 Mo max
+    limits: { fileSize: 10 * 1024 * 1024 },
 });
 
-/**
- * Vérifie qu'un chemin de fichier est bien dans UPLOAD_DIR (anti path traversal)
- */
 function isSafeFilePath(filePath) {
     const resolved = path.resolve(filePath);
     return resolved.startsWith(UPLOAD_DIR);

@@ -12,14 +12,14 @@ async function logAction(req, action, entityType, entityId = null, oldData = nul
                 action,
                 entityType,
                 entityId,
-                oldData  ? JSON.stringify(oldData)  : null,
-                newData  ? JSON.stringify(newData)   : null,
+                oldData ? JSON.stringify(oldData) : null,
+                newData ? JSON.stringify(newData) : null,
                 req.ip,
                 req.headers['user-agent'] ?? null,
             ]
         );
     } catch (err) {
-        console.error('⚠️  Erreur journalisation audit :', err.message);
+        console.error('Erreur journalisation audit :', err.message);
     }
 }
 

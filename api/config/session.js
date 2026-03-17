@@ -1,29 +1,35 @@
-const session    = require('express-session');
 const MySQLStore = require('express-mysql-session')(session);
+const session = require('express-session');
+require('dotenv').config();
 
 function createSessionStore(pool) {
-    return new MySQLStore({
-        expiration:          86400000,
-        createDatabaseTable: false,
+    const options = {
+        expiration: 86400000,
+        createDatabaseTable: true,
         schema: {
-            tableName:   'sessions',
-            columnNames: { session_id: 'session_id', expires: 'expires', data: 'data' }
+            tableName: 'sessions',
+            columnNames: {
+                session_id: 'session_id',
+                expires: 'expires',
+                data: 'data'
+            }
         }
-    }, pool);
+    };
+    return new MySQLStore(options, pool);
 }
 
 function getSessionConfig(store) {
     return {
-        key:              'sid',
-        secret:           process.env.SESSION_SECRET,
-        store,
-        resave:           false,
+        store: store,
+        secret: process.env.SESSION_SECRET,
+        resave: false,
         saveUninitialized: false,
+        name: 'sid',
         cookie: {
-            secure:   process.env.NODE_ENV === 'production',
             httpOnly: true,
-            maxAge:   86400000,
-            sameSite: 'lax',
+            secure: true,
+            sameSite: 'none',
+            maxAge: 24 * 60 * 60 * 1000
         }
     };
 }

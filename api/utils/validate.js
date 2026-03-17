@@ -1,6 +1,6 @@
 const validator = require('validator');
 
-const ALLOWED_ROLES      = ['employee', 'hr', 'legal', 'admin'];
+const ALLOWED_ROLES = ['employee', 'hr', 'legal', 'admin'];
 const ALLOWED_CATEGORIES = [
     'Harcèlement moral',
     'Harcèlement sexuel',
@@ -9,7 +9,7 @@ const ALLOWED_CATEGORIES = [
     'Atteinte à l\'éthique',
     'Autre',
 ];
-const ALLOWED_STATUSES   = ['open', 'in_progress', 'waiting_info', 'closed_founded', 'closed_unfounded'];
+const ALLOWED_STATUSES = ['open', 'in_progress', 'waiting_info', 'closed_founded', 'closed_unfounded'];
 
 function isValidEmail(email) {
     return typeof email === 'string' && validator.isEmail(email) && email.length <= 255;
