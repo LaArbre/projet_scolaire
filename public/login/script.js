@@ -51,7 +51,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
         const data = await res.json();
 
         if (data.success) {
-            animateFields(form, data.fields, 'success');
+            animateFields(form, ['email', 'password'], 'success');
             setTimeout(() => {
                 window.location.href = '/dashboard/';
             }, 500);
@@ -106,7 +106,7 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         const data = await res.json();
 
         if (data.success) {
-            animateFields(form, data.fields, 'success');
+            animateFields(form, ['name', 'email', 'password', 'confirm'], 'success');
             setTimeout(() => {
                 window.location.href = '/dashboard/';
             }, 2000);
