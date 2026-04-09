@@ -18,9 +18,9 @@ router.get('/', auth, async (req, res) => {
         const after    = req.query.after  ? parseInt(req.query.after,  10) : null;
         const db       = getPool();
 
-        // Vérifier accès au signalement
         const [reports] = await db.query('SELECT user_id FROM reports WHERE id = ?', [reportId]);
-        if (reports.length === 0) return res.status(404).json({ error: 'Signalement non trouvé' });
+        if (reports.length === 0)
+            return res.status(404).json({ error: 'Signalement non trouvé' });
         if (req.session.user.role === 'employee' && reports[0].user_id !== req.session.user.id)
             return res.status(403).json({ error: 'Accès interdit' });
 
@@ -42,7 +42,6 @@ router.get('/', auth, async (req, res) => {
         let [messages] = await db.query(query, params);
         if (order === 'ASC') messages = messages.reverse();
 
-        // Pagination curseur
         let hasBefore = false, hasAfter = false;
         if (messages.length > 0) {
             const firstId = messages[0].id;
@@ -75,11 +74,19 @@ router.post('/', auth, async (req, res) => {
         if (!content || !content.trim() || content.length > 5000)
             return res.status(400).json({ error: 'Contenu invalide (1-5000 caractères)' });
 
-        // Vérifier accès au signalement
-        const [reports] = await db.query('SELECT user_id FROM reports WHERE id = ?', [reportId]);
-        if (reports.length === 0) return res.status(404).json({ error: 'Signalement non trouvé' });
+        const [reports] = await db.query(
+            'SELECT user_id, status FROM reports WHERE id = ?',
+            [reportId]
+        );
+        if (reports.length === 0)
+            return res.status(404).json({ error: 'Signalement non trouvé' });
+
         if (req.session.user.role === 'employee' && reports[0].user_id !== req.session.user.id)
             return res.status(403).json({ error: 'Accès interdit' });
+
+        // Bloquer les messages sur un signalement clôturé
+        if (reports[0].status.startsWith('closed'))
+            return res.status(400).json({ error: 'Ce signalement est clôturé, impossible d\'ajouter un message' });
 
         const [result] = await db.query(
             `INSERT INTO messages (report_id, sender_id, sender_role, content, is_anonymous)

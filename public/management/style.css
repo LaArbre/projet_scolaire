@@ -581,7 +581,6 @@ body {
 
 /* Column widths */
 .col-code     { width: 160px; }
-.col-category { }
 .col-status   { width: 150px; }
 .col-anon     { width: 90px; }
 .col-date     { width: 130px; }

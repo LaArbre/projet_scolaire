@@ -1,9 +1,9 @@
 const express  = require('express');
 const path     = require('path');
 const fs       = require('fs').promises;
-const { getPool }       = require('../config/db');
-const auth              = require('../middlewares/auth');
-const { isSafeFilePath } = require('../utils/fileHandler');
+const { getPool }        = require('../config/db');
+const auth               = require('../middlewares/auth');
+const { isSafeFilePath, sanitizeFilename } = require('../utils/fileHandler');
 const { isPositiveInt }  = require('../utils/validate');
 
 const router = express.Router();
@@ -27,23 +27,22 @@ router.get('/:id', auth, async (req, res) => {
 
         const attachment = rows[0];
 
-        // Vérification des droits
         if (req.session.user.role === 'employee' &&
             attachment.report_user_id !== req.session.user.id)
             return res.status(403).json({ error: 'Accès interdit' });
 
-        // Protection path traversal
         if (!isSafeFilePath(attachment.filepath))
             return res.status(403).json({ error: 'Chemin non autorisé' });
 
-        // Vérification existence sur le disque
         try {
             await fs.access(attachment.filepath);
         } catch {
             return res.status(404).json({ error: 'Fichier introuvable sur le disque' });
         }
 
-        res.download(attachment.filepath, attachment.filename);
+        // Sanitisation du nom dans Content-Disposition pour éviter l'injection de headers
+        const safeFilename = sanitizeFilename(attachment.filename);
+        res.download(attachment.filepath, safeFilename);
     } catch (err) {
         console.error('Erreur téléchargement:', err);
         res.status(500).json({ error: 'Erreur serveur' });

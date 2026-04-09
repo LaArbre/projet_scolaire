@@ -5,7 +5,8 @@ const auth           = require('../middlewares/auth');
 const checkRole      = require('../middlewares/checkRole');
 const { logAction }  = require('../utils/auditLogger');
 const {
-    isValidEmail, isValidPassword, isValidFullname, isValidRole, isPositiveInt
+    isValidEmail, isValidPassword, isValidFullname, isValidRole,
+    isPositiveInt, isValidDateOrNull,
 } = require('../utils/validate');
 
 const router = express.Router();
@@ -37,7 +38,7 @@ router.post('/users', async (req, res) => {
         if (!isValidEmail(email))
             return res.status(400).json({ error: 'Email invalide' });
         if (!isValidPassword(password))
-            return res.status(400).json({ error: 'Mot de passe invalide (8 caractères min)' });
+            return res.status(400).json({ error: 'Mot de passe invalide (8 caractères min, majuscule, chiffre, symbole)' });
         if (!isValidRole(role))
             return res.status(400).json({ error: 'Rôle invalide' });
 
@@ -79,7 +80,6 @@ router.patch('/users/:id', async (req, res) => {
         if (email !== undefined) {
             if (!isValidEmail(email))
                 return res.status(400).json({ error: 'Email invalide' });
-            // Vérifier unicité
             const [dup] = await db.query(
                 'SELECT id FROM users WHERE email = ? AND id != ?',
                 [email.toLowerCase().trim(), targetId]
@@ -93,6 +93,9 @@ router.patch('/users/:id', async (req, res) => {
             updates.push('role = ?'); params.push(role);
         }
         if (locked_until !== undefined) {
+            // Valider le format de date avant d'insérer en base
+            if (!isValidDateOrNull(locked_until))
+                return res.status(400).json({ error: 'Format de date invalide pour locked_until' });
             updates.push('locked_until = ?'); params.push(locked_until || null);
         }
 
@@ -117,18 +120,15 @@ router.delete('/users/:id', async (req, res) => {
 
         const targetId = parseInt(req.params.id, 10);
 
-        // Protection auto-désactivation
         if (targetId === req.session.user.id)
             return res.status(400).json({ error: 'Impossible de se désactiver soi-même' });
 
         const db = getPool();
 
-        // Vérifier que la cible existe
         const [rows] = await db.query('SELECT id FROM users WHERE id = ?', [targetId]);
         if (rows.length === 0)
             return res.status(404).json({ error: 'Utilisateur non trouvé' });
 
-        // Verrouillage permanent (locked_until très loin dans le futur)
         await db.query(
             "UPDATE users SET locked_until = '2099-12-31 23:59:59' WHERE id = ?",
             [targetId]

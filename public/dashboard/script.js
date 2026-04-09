@@ -507,7 +507,7 @@ function handleLogout() {
 // ─── Navigation ───────────────────────────────────────────────
 function navigateTo(page) {
     const paths = {
-        manage: '/manage-reports/',
+        manage: '/management/',
         audit:  '/audit/',
         users:  '/admin/users/',
         system: '/admin/system/'

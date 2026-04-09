@@ -1,16 +1,16 @@
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs').promises;
+const path   = require('path');
+const fs     = require('fs').promises;
 const crypto = require('crypto');
 
 const UPLOAD_DIR = path.resolve(__dirname, '../../uploads');
 
 const ALLOWED = {
-    'image/jpeg': ['.jpg', '.jpeg'],
-    'image/png': ['.png'],
-    'image/gif': ['.gif'],
-    'application/pdf': ['.pdf'],
-    'text/plain': ['.txt'],
+    'image/jpeg':       ['.jpg', '.jpeg'],
+    'image/png':        ['.png'],
+    'image/gif':        ['.gif'],
+    'application/pdf':  ['.pdf'],
+    'text/plain':       ['.txt'],
 };
 
 const storage = multer.diskStorage({
@@ -19,14 +19,14 @@ const storage = multer.diskStorage({
         cb(null, UPLOAD_DIR);
     },
     filename: (req, file, cb) => {
-        const ext = path.extname(file.originalname).toLowerCase();
+        const ext    = path.extname(file.originalname).toLowerCase();
         const unique = crypto.randomBytes(16).toString('hex') + ext;
         cb(null, unique);
     },
 });
 
 const fileFilter = (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
+    const ext        = path.extname(file.originalname).toLowerCase();
     const allowedExts = ALLOWED[file.mimetype];
 
     if (!allowedExts || !allowedExts.includes(ext)) {
@@ -38,12 +38,30 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({
     storage,
     fileFilter,
-    limits: { fileSize: 10 * 1024 * 1024 },
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10 Mo
 });
+
+/**
+ * Sanitise le nom de fichier original avant stockage en base.
+ * - Supprime les caractères de traversée de chemin et de contrôle
+ * - Préserve uniquement les caractères alphanumériques, tirets, underscores, points
+ * - Tronque à 200 caractères
+ * - Conserve l'extension validée
+ */
+function sanitizeFilename(originalname) {
+    const ext  = path.extname(originalname).toLowerCase();
+    const base = path.basename(originalname, ext)
+        .replace(/[^a-zA-Z0-9\-_ ]/g, '_')  // caractères non sûrs → underscore
+        .replace(/\.{2,}/g, '_')             // séquences de points → underscore
+        .trim()
+        .substring(0, 200 - ext.length)      // tronque en laissant la place à l'extension
+        || 'fichier';                        // fallback si tout a été supprimé
+    return base + ext;
+}
 
 function isSafeFilePath(filePath) {
     const resolved = path.resolve(filePath);
     return resolved.startsWith(UPLOAD_DIR);
 }
 
-module.exports = { upload, UPLOAD_DIR, isSafeFilePath };
+module.exports = { upload, UPLOAD_DIR, isSafeFilePath, sanitizeFilename };

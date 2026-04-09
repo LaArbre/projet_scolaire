@@ -1,18 +1,26 @@
-const express    = require('express');
-const crypto     = require('crypto');
+const express  = require('express');
+const crypto   = require('crypto');
 const { getPool }    = require('../config/db');
 const auth           = require('../middlewares/auth');
 const checkRole      = require('../middlewares/checkRole');
 const { logAction }  = require('../utils/auditLogger');
-const { upload }     = require('../utils/fileHandler');
+const { upload, sanitizeFilename } = require('../utils/fileHandler');
 const {
-    isValidCategory, isValidStatus, isPositiveInt, ALLOWED_STATUSES
+    isValidCategory, isValidStatus, isPositiveInt,
 } = require('../utils/validate');
 
 const router = express.Router();
 
-function generateTrackingCode() {
-    return 'RPT-' + Date.now() + '-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+/**
+ * Génère un code de suivi unique avec retry en cas de collision (contrainte UNIQUE en DB).
+ */
+async function generateTrackingCode(db, maxRetries = 5) {
+    for (let i = 0; i < maxRetries; i++) {
+        const code = 'RPT-' + Date.now() + '-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+        const [rows] = await db.query('SELECT id FROM reports WHERE tracking_code = ?', [code]);
+        if (rows.length === 0) return code;
+    }
+    throw new Error('Impossible de générer un code de suivi unique après plusieurs tentatives');
 }
 
 // ── POST /api/reports — Créer un signalement ─────────────────────────────────
@@ -28,7 +36,7 @@ router.post('/', auth, upload.array('attachments', 5), async (req, res) => {
         if (!description || !description.trim() || description.length > 10000)
             return res.status(400).json({ error: 'Description invalide (1-10000 caractères)' });
 
-        const trackingCode = generateTrackingCode();
+        const trackingCode = await generateTrackingCode(db);
         const [result] = await db.query(
             `INSERT INTO reports
              (tracking_code, title, user_id, category, description, status, is_anonymous)
@@ -39,11 +47,13 @@ router.post('/', auth, upload.array('attachments', 5), async (req, res) => {
 
         if (req.files?.length > 0) {
             for (const file of req.files) {
+                // Sanitisation du nom original avant stockage
+                const safeName = sanitizeFilename(file.originalname);
                 await db.query(
                     `INSERT INTO attachments
                      (report_id, filename, filepath, filesize, mime_type, uploaded_by)
                      VALUES (?, ?, ?, ?, ?, ?)`,
-                    [reportId, file.originalname, file.path, file.size, file.mimetype, req.session.user.id]
+                    [reportId, safeName, file.path, file.size, file.mimetype, req.session.user.id]
                 );
             }
         }
@@ -63,19 +73,26 @@ router.get('/', auth, async (req, res) => {
         const limit  = Math.min(parseInt(req.query.limit)  || 50, 100);
         const offset = Math.max(parseInt(req.query.offset) || 0,  0);
 
-        let query, params;
+        let query, countQuery, params, countParams;
+
         if (req.session.user.role === 'employee') {
-            query  = `SELECT id, tracking_code, title, category, status, is_anonymous, created_at, updated_at
-                      FROM reports WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`;
-            params = [req.session.user.id, limit, offset];
+            countQuery  = 'SELECT COUNT(*) AS total FROM reports WHERE user_id = ?';
+            countParams = [req.session.user.id];
+            query       = `SELECT id, tracking_code, title, category, status, is_anonymous, created_at, updated_at
+                           FROM reports WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+            params      = [req.session.user.id, limit, offset];
         } else {
-            query  = `SELECT id, tracking_code, title, category, status, is_anonymous, created_at, updated_at
-                      FROM reports ORDER BY created_at DESC LIMIT ? OFFSET ?`;
-            params = [limit, offset];
+            countQuery  = 'SELECT COUNT(*) AS total FROM reports';
+            countParams = [];
+            query       = `SELECT id, tracking_code, title, category, status, is_anonymous, created_at, updated_at
+                           FROM reports ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+            params      = [limit, offset];
         }
 
-        const [reports] = await db.query(query, params);
-        res.json(reports);
+        const [[{ total }]] = await db.query(countQuery, countParams);
+        const [reports]     = await db.query(query, params);
+
+        res.json({ reports, total, limit, offset });
     } catch (err) {
         console.error('Erreur liste signalements:', err);
         res.status(500).json({ error: 'Erreur serveur' });
@@ -132,7 +149,6 @@ router.patch('/:id/status', auth, checkRole(['hr', 'legal', 'admin']), async (re
         if (!isValidStatus(status))
             return res.status(400).json({ error: 'Statut invalide' });
 
-        // Vérifier que le signalement existe
         const [reports] = await db.query('SELECT id, status FROM reports WHERE id = ?', [reportId]);
         if (reports.length === 0)
             return res.status(404).json({ error: 'Signalement non trouvé' });
@@ -156,14 +172,14 @@ router.patch('/:id/status', auth, checkRole(['hr', 'legal', 'admin']), async (re
 
         await db.query(query, params);
 
-        // Message système automatique de changement de statut
         const statusLabels = {
-            open:              'Ouvert',
-            in_progress:       'En cours',
-            waiting_info:      'En attente d\'informations',
-            closed_founded:    'Clôturé (fondé)',
-            closed_unfounded:  'Clôturé (non fondé)',
+            open:             'Ouvert',
+            in_progress:      'En cours',
+            waiting_info:     "En attente d'informations",
+            closed_founded:   'Clôturé (fondé)',
+            closed_unfounded: 'Clôturé (non fondé)',
         };
+
         await db.query(
             `INSERT INTO messages (report_id, sender_id, sender_role, content, is_anonymous)
              VALUES (?, ?, 'system', ?, false)`,

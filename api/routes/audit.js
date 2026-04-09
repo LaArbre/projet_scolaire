@@ -2,7 +2,7 @@ const express   = require('express');
 const { getPool }   = require('../config/db');
 const auth          = require('../middlewares/auth');
 const checkRole     = require('../middlewares/checkRole');
-const { isPositiveInt } = require('../utils/validate');
+const { isPositiveInt, escapeLike } = require('../utils/validate');
 
 const router = express.Router();
 router.use(auth, checkRole(['legal', 'admin']));
@@ -24,7 +24,9 @@ router.get('/', async (req, res) => {
             query += ' AND al.user_id = ?'; params.push(parseInt(userId, 10));
         }
         if (action && typeof action === 'string') {
-            query += ' AND al.action LIKE ?'; params.push(`%${action.substring(0, 50)}%`);
+            // Échappement des wildcards SQL LIKE pour éviter les full scans
+            query += ' AND al.action LIKE ?';
+            params.push(`%${escapeLike(action.substring(0, 50))}%`);
         }
         if (entityType && typeof entityType === 'string') {
             query += ' AND al.entity_type = ?'; params.push(entityType.substring(0, 50));
