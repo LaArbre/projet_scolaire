@@ -40,10 +40,6 @@ async function init() {
     }
 
     currentUser = session.user;
-    if (currentUser.role !== 'employee') {
-        window.location.href = '/admin/';
-        return;
-    }
 
     renderUser();
     bindEvents();
