@@ -1,546 +1,733 @@
-import { getSession, logout } from '../global/auth.js';
-import { apiFetch } from '../global/utils.js';
-
-// ─── State ────────────────────────────────────────────────────
-let currentUser = null;
-let allReports  = [];      // fetched from API
-let filtered    = [];      // after client-side filters
-let currentPage = 1;
-const PAGE_SIZE = 20;
-
-// Filters state
-let filterState = {
-    search:   '',
-    category: '',
-    dateFrom: '',
-    dateTo:   '',
-    anon:     '',
-    view:     'open',      // 'open' | 'closed' | 'all'
-    sort:     'created_at-desc',
+// ============================================================
+// GESTION DE L'ÉTAT GLOBAL
+// ============================================================
+const state = {
+    user: null,
+    csrfToken: null,
+    reports: [],
+    totalReports: 0,
+    currentPage: 1,
+    limit: 20,
+    filters: {
+        search: '',
+        category: '',
+        dateFrom: '',
+        dateTo: '',
+        isAnonymous: '',
+        closed: 'open' // 'open', 'closed', 'all'
+    },
+    sort: 'created_at-desc',
+    stats: {
+        open: 0,
+        in_progress: 0,
+        waiting_info: 0,
+        closed: 0,
+        total: 0
+    },
+    drawerReportId: null,
+    drawerMessages: [],
+    pollingInterval: null
 };
 
-// ─── DOM ──────────────────────────────────────────────────────
-const tableBody     = document.getElementById('tableBody');
-const tableCount    = document.getElementById('tableCount');
-const pageNum       = document.getElementById('pageNum');
-const pageTotal     = document.getElementById('pageTotal');
-const btnPrevPage   = document.getElementById('btnPrevPage');
-const btnNextPage   = document.getElementById('btnNextPage');
-const detailDrawer  = document.getElementById('detailDrawer');
-const drawerOverlay = document.getElementById('drawerOverlay');
-const drawerContent = document.getElementById('drawerContent');
-const drawerTitle   = document.getElementById('drawerTitle');
-const drawerClose   = document.getElementById('drawerClose');
+// Éléments DOM fréquemment utilisés
+const elements = {
+    // Topbar
+    topbarAvatar: document.getElementById('topbarAvatar'),
+    topbarName: document.getElementById('topbarName'),
+    btnLogout: document.getElementById('btnLogout'),
+    liveIndicator: document.getElementById('liveIndicator'),
 
-// ─── Init ─────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', init);
+    // Stats
+    cntOpen: document.getElementById('cntOpen'),
+    cntProgress: document.getElementById('cntProgress'),
+    cntWaiting: document.getElementById('cntWaiting'),
+    cntClosed: document.getElementById('cntClosed'),
+    cntTotal: document.getElementById('cntTotal'),
 
-async function init() {
-    const session = await getSession();
-    if (!session.authenticated) {
-        window.location.href = '/login/';
-        return;
-    }
-    currentUser = session.user;
-    if (!['hr', 'legal', 'admin'].includes(currentUser.role)) {
-        window.location.href = '/dashboard/';
-        return;
-    }
+    // Filtres
+    filterSearch: document.getElementById('filterSearch'),
+    filterCategory: document.getElementById('filterCategory'),
+    filterDateFrom: document.getElementById('filterDateFrom'),
+    filterDateTo: document.getElementById('filterDateTo'),
+    filterAnon: document.getElementById('filterAnon'),
+    btnResetFilters: document.getElementById('btnResetFilters'),
+    toggleClosed: document.getElementById('toggleClosed'),
+    sortSelect: document.getElementById('sortSelect'),
 
-    renderUserBadge();
-    bindFilters();
-    bindDrawer();
-    bindPagination();
-    bindSort();
-    document.getElementById('btnLogout').addEventListener('click', handleLogout);
+    // Table
+    tableBody: document.getElementById('tableBody'),
+    tableCount: document.getElementById('tableCount'),
+    pageNum: document.getElementById('pageNum'),
+    pageTotal: document.getElementById('pageTotal'),
+    btnPrevPage: document.getElementById('btnPrevPage'),
+    btnNextPage: document.getElementById('btnNextPage'),
 
-    await fetchReports();
+    // Drawer
+    drawerOverlay: document.getElementById('drawerOverlay'),
+    detailDrawer: document.getElementById('detailDrawer'),
+    drawerClose: document.getElementById('drawerClose'),
+    drawerTitle: document.getElementById('drawerTitle'),
+    drawerContent: document.getElementById('drawerContent'),
 
-    // Auto-refresh every 60 s
-    setInterval(fetchReports, 60_000);
+    // Toast
+    toastContainer: document.getElementById('toastContainer')
+};
+
+// ============================================================
+// UTILITAIRES
+// ============================================================
+
+// Toast
+function showToast(message, type = 'info', duration = 4000) {
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : type === 'warning' ? '⚠' : 'ℹ';
+    toast.innerHTML = `
+        <span class="toast-icon">${icon}</span>
+        <span class="toast-msg">${escapeHtml(message)}</span>
+        <button class="toast-close" aria-label="Fermer">×</button>
+    `;
+    elements.toastContainer.appendChild(toast);
+    
+    const closeBtn = toast.querySelector('.toast-close');
+    const removeToast = () => {
+        toast.classList.add('toast-out');
+        setTimeout(() => toast.remove(), 200);
+    };
+    closeBtn.addEventListener('click', removeToast);
+    setTimeout(removeToast, duration);
 }
 
-// ─── User badge ───────────────────────────────────────────────
-function renderUserBadge() {
-    const name = currentUser.name || currentUser.email || 'Utilisateur';
-    document.getElementById('topbarAvatar').textContent = name.charAt(0).toUpperCase();
-    document.getElementById('topbarName').textContent   = name;
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
-// ─── Fetch all reports ────────────────────────────────────────
+// Formatage de date relative
+function formatRelativeDate(dateString) {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffSec = Math.floor(diffMs / 1000);
+    const diffMin = Math.floor(diffSec / 60);
+    const diffHour = Math.floor(diffMin / 60);
+    const diffDay = Math.floor(diffHour / 24);
+    const diffMonth = Math.floor(diffDay / 30);
+    const diffYear = Math.floor(diffDay / 365);
+
+    if (diffSec < 60) return "à l'instant";
+    if (diffMin < 60) return `il y a ${diffMin} min`;
+    if (diffHour < 24) return `il y a ${diffHour} h`;
+    if (diffDay < 30) return `il y a ${diffDay} j`;
+    if (diffMonth < 12) return `il y a ${diffMonth} mois`;
+    return `il y a ${diffYear} an${diffYear > 1 ? 's' : ''}`;
+}
+
+function formatDate(dateString) {
+    return new Date(dateString).toLocaleDateString('fr-FR', {
+        day: '2-digit', month: '2-digit', year: 'numeric'
+    });
+}
+
+// Debounce pour la recherche
+function debounce(fn, delay) {
+    let timer;
+    return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn(...args), delay);
+    };
+}
+
+// ============================================================
+// API CALLS (avec gestion CSRF et erreurs)
+// ============================================================
+async function apiCall(url, options = {}) {
+    const headers = {
+        'Content-Type': 'application/json',
+        ...options.headers
+    };
+    if (state.csrfToken && !['GET', 'HEAD', 'OPTIONS'].includes(options.method || 'GET')) {
+        headers['X-CSRF-Token'] = state.csrfToken;
+    }
+    const config = {
+        credentials: 'include',
+        ...options,
+        headers
+    };
+    try {
+        const response = await fetch(url, config);
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || `Erreur ${response.status}`);
+        }
+        return await response.json();
+    } catch (error) {
+        console.error('API Error:', error);
+        throw error;
+    }
+}
+
+// Vérification de session et récupération CSRF
+async function checkSession() {
+    try {
+        const data = await apiCall('/api/check-session');
+        if (data.authenticated) {
+            state.user = data.user;
+            updateUserUI();
+            // Récupérer le token CSRF
+            const csrfData = await apiCall('/api/csrf-token');
+            state.csrfToken = csrfData.csrfToken;
+            return true;
+        }
+        return false;
+    } catch (error) {
+        return false;
+    }
+}
+
+async function logout() {
+    try {
+        await apiCall('/api/logout', { method: 'POST' });
+        window.location.href = '/login.html'; // redirection vers login
+    } catch (error) {
+        showToast('Erreur lors de la déconnexion', 'error');
+    }
+}
+
+// Récupération des signalements avec filtres
 async function fetchReports() {
     try {
-        // Fetch up to 200 reports (adjust limit as needed)
-        const data = await apiFetch('/api/reports?limit=200');
-        allReports = data;
-        applyFilters();
-        updateStats();
-    } catch (err) {
-        console.error(err);
-        showToast('Impossible de charger les signalements.', 'error');
-    }
-}
-
-// ─── Stats ────────────────────────────────────────────────────
-function updateStats() {
-    const counts = { open: 0, in_progress: 0, waiting_info: 0, closed: 0 };
-    for (const r of allReports) {
-        if (r.status === 'open')              counts.open++;
-        else if (r.status === 'in_progress')  counts.in_progress++;
-        else if (r.status === 'waiting_info') counts.waiting_info++;
-        else if (r.status.startsWith('closed')) counts.closed++;
-    }
-    document.getElementById('cntOpen').textContent     = counts.open;
-    document.getElementById('cntProgress').textContent = counts.in_progress;
-    document.getElementById('cntWaiting').textContent  = counts.waiting_info;
-    document.getElementById('cntClosed').textContent   = counts.closed;
-    document.getElementById('cntTotal').textContent    = allReports.length;
-}
-
-// ─── Filters binding ─────────────────────────────────────────
-function bindFilters() {
-    document.getElementById('filterSearch').addEventListener('input', debounce(e => {
-        filterState.search = e.target.value.trim().toLowerCase();
-        currentPage = 1;
-        applyFilters();
-    }, 250));
-
-    document.getElementById('filterCategory').addEventListener('change', e => {
-        filterState.category = e.target.value;
-        currentPage = 1;
-        applyFilters();
-    });
-
-    document.getElementById('filterDateFrom').addEventListener('change', e => {
-        filterState.dateFrom = e.target.value;
-        currentPage = 1;
-        applyFilters();
-    });
-
-    document.getElementById('filterDateTo').addEventListener('change', e => {
-        filterState.dateTo = e.target.value;
-        currentPage = 1;
-        applyFilters();
-    });
-
-    document.getElementById('filterAnon').addEventListener('change', e => {
-        filterState.anon = e.target.value;
-        currentPage = 1;
-        applyFilters();
-    });
-
-    document.getElementById('btnResetFilters').addEventListener('click', resetFilters);
-
-    // Toggle pill (open / closed / all)
-    document.getElementById('toggleClosed').querySelectorAll('.pill-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            filterState.view = btn.dataset.val;
-            currentPage = 1;
-            applyFilters();
-        });
-    });
-}
-
-function resetFilters() {
-    filterState = { ...filterState, search: '', category: '', dateFrom: '', dateTo: '', anon: '' };
-    document.getElementById('filterSearch').value   = '';
-    document.getElementById('filterCategory').value = '';
-    document.getElementById('filterDateFrom').value = '';
-    document.getElementById('filterDateTo').value   = '';
-    document.getElementById('filterAnon').value     = '';
-    currentPage = 1;
-    applyFilters();
-}
-
-// ─── Apply filters ────────────────────────────────────────────
-function applyFilters() {
-    let result = [...allReports];
-
-    // View toggle
-    if (filterState.view === 'open') {
-        result = result.filter(r => !r.status.startsWith('closed'));
-    } else if (filterState.view === 'closed') {
-        result = result.filter(r => r.status.startsWith('closed'));
-    }
-
-    // Search: code, category, title
-    if (filterState.search) {
-        result = result.filter(r =>
-            (r.tracking_code || '').toLowerCase().includes(filterState.search) ||
-            (r.category || '').toLowerCase().includes(filterState.search) ||
-            (r.title || '').toLowerCase().includes(filterState.search)
-        );
-    }
-
-    // Category
-    if (filterState.category) {
-        result = result.filter(r => r.category === filterState.category);
-    }
-
-    // Date from
-    if (filterState.dateFrom) {
-        const from = new Date(filterState.dateFrom);
-        result = result.filter(r => new Date(r.created_at) >= from);
-    }
-
-    // Date to (inclusive: end of day)
-    if (filterState.dateTo) {
-        const to = new Date(filterState.dateTo);
-        to.setHours(23, 59, 59, 999);
-        result = result.filter(r => new Date(r.created_at) <= to);
-    }
-
-    // Anonymat
-    if (filterState.anon !== '') {
-        const isAnon = filterState.anon === '1';
-        result = result.filter(r => !!r.is_anonymous === isAnon);
-    }
-
-    // Sort
-    const [sortField, sortDir] = filterState.sort.split('-');
-    result.sort((a, b) => {
-        let va = a[sortField] || '';
-        let vb = b[sortField] || '';
-        if (sortField === 'created_at' || sortField === 'updated_at') {
-            va = new Date(va); vb = new Date(vb);
-        } else {
-            va = String(va).toLowerCase(); vb = String(vb).toLowerCase();
+        const params = new URLSearchParams();
+        params.append('limit', state.limit);
+        params.append('offset', (state.currentPage - 1) * state.limit);
+        
+        // Filtres
+        if (state.filters.category) params.append('category', state.filters.category);
+        if (state.filters.dateFrom) params.append('created_after', state.filters.dateFrom);
+        if (state.filters.dateTo) params.append('created_before', state.filters.dateTo);
+        if (state.filters.isAnonymous !== '') params.append('is_anonymous', state.filters.isAnonymous);
+        if (state.filters.search) params.append('search', state.filters.search); // L'API ne supporte pas search, on filtrera côté client
+        
+        // Statut (closed filter)
+        if (state.filters.closed === 'open') {
+            // L'API ne supporte pas directement "status not like closed%", on va filtrer côté client
+        } else if (state.filters.closed === 'closed') {
+            // On pourrait ajouter un paramètre fictif mais l'API ne le gère pas. On filtrera côté client.
         }
-        if (va < vb) return sortDir === 'asc' ? -1 :  1;
-        if (va > vb) return sortDir === 'asc' ?  1 : -1;
+        
+        // Tri
+        const [sortField, sortOrder] = state.sort.split('-');
+        // L'API ne supporte pas le tri via query string, on triera côté client
+
+        const data = await apiCall(`/api/reports?${params.toString()}`);
+        
+        let reports = data.reports || [];
+        state.totalReports = data.total || 0;
+        
+        // Appliquer les filtres supplémentaires côté client (search, closed, tri)
+        reports = filterReportsClientSide(reports);
+        reports = sortReportsClientSide(reports);
+        
+        state.reports = reports;
+        renderTable();
+        updatePagination();
+        
+        // Mettre à jour les stats (on peut le faire avec un appel séparé pour plus de précision)
+        await fetchStats();
+        
+    } catch (error) {
+        showToast('Erreur lors du chargement des signalements', 'error');
+        console.error(error);
+        state.reports = [];
+        renderTable();
+        updatePagination();
+    }
+}
+
+// Filtrage côté client pour search et closed
+function filterReportsClientSide(reports) {
+    return reports.filter(report => {
+        // Filtre search (code ou catégorie)
+        if (state.filters.search) {
+            const searchTerm = state.filters.search.toLowerCase();
+            const codeMatch = report.tracking_code?.toLowerCase().includes(searchTerm);
+            const catMatch = report.category?.toLowerCase().includes(searchTerm);
+            if (!codeMatch && !catMatch) return false;
+        }
+        
+        // Filtre closed
+        if (state.filters.closed === 'open' && report.status?.startsWith('closed')) return false;
+        if (state.filters.closed === 'closed' && !report.status?.startsWith('closed')) return false;
+        
+        return true;
+    });
+}
+
+function sortReportsClientSide(reports) {
+    const [field, order] = state.sort.split('-');
+    return [...reports].sort((a, b) => {
+        let valA = a[field];
+        let valB = b[field];
+        if (field === 'created_at' || field === 'updated_at') {
+            valA = new Date(valA);
+            valB = new Date(valB);
+        }
+        if (valA < valB) return order === 'asc' ? -1 : 1;
+        if (valA > valB) return order === 'asc' ? 1 : -1;
         return 0;
     });
-
-    filtered = result;
-    renderTable();
 }
 
-// ─── Render table ─────────────────────────────────────────────
+// Récupération des statistiques (en faisant un appel avec grande limite pour les rôles admin/hr/legal)
+async function fetchStats() {
+    if (!state.user) return;
+    try {
+        let statsUrl = '/api/reports?limit=1000';
+        // Si employé, l'API ne retourne que ses signalements, donc les stats sont correctes pour lui
+        const data = await apiCall(statsUrl);
+        const reports = data.reports || [];
+        
+        const stats = {
+            open: 0,
+            in_progress: 0,
+            waiting_info: 0,
+            closed: 0,
+            total: data.total || reports.length
+        };
+        
+        reports.forEach(r => {
+            if (r.status === 'open') stats.open++;
+            else if (r.status === 'in_progress') stats.in_progress++;
+            else if (r.status === 'waiting_info') stats.waiting_info++;
+            else if (r.status.startsWith('closed')) stats.closed++;
+        });
+        
+        state.stats = stats;
+        updateStatsUI();
+    } catch (error) {
+        console.error('Erreur stats:', error);
+    }
+}
+
+// ============================================================
+// RENDU UI
+// ============================================================
+function updateUserUI() {
+    if (state.user) {
+        elements.topbarName.textContent = state.user.fullname || state.user.email;
+        const initial = (state.user.fullname || state.user.email).charAt(0).toUpperCase();
+        elements.topbarAvatar.textContent = initial;
+    }
+}
+
+function updateStatsUI() {
+    elements.cntOpen.textContent = state.stats.open;
+    elements.cntProgress.textContent = state.stats.in_progress;
+    elements.cntWaiting.textContent = state.stats.waiting_info;
+    elements.cntClosed.textContent = state.stats.closed;
+    elements.cntTotal.textContent = state.stats.total;
+}
+
 function renderTable() {
-    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-    currentPage = Math.min(currentPage, totalPages);
-
-    const start = (currentPage - 1) * PAGE_SIZE;
-    const slice = filtered.slice(start, start + PAGE_SIZE);
-
-    tableCount.textContent = `${filtered.length} résultat${filtered.length > 1 ? 's' : ''}`;
-    pageNum.textContent    = currentPage;
-    pageTotal.textContent  = totalPages;
-    btnPrevPage.disabled   = currentPage <= 1;
-    btnNextPage.disabled   = currentPage >= totalPages;
-
-    if (!slice.length) {
-        tableBody.innerHTML = `
-            <tr class="empty-row">
-                <td colspan="7">
-                    <span class="empty-icon">🔍</span>
-                    Aucun signalement ne correspond aux filtres.
-                </td>
-            </tr>`;
+    const tbody = elements.tableBody;
+    if (state.reports.length === 0) {
+        tbody.innerHTML = `<tr class="empty-row"><td colspan="7"><span class="empty-icon">📋</span>Aucun signalement trouvé</td></tr>`;
+        elements.tableCount.textContent = `0 résultat`;
         return;
     }
-
-    tableBody.innerHTML = slice.map((r, i) => `
-        <tr class="row-enter" style="animation-delay:${i * 0.03}s" data-id="${r.id}">
-            <td class="code-cell">${escapeHtml(r.tracking_code || '—')}</td>
-            <td class="category-cell">${escapeHtml(r.category || '—')}</td>
-            <td><span class="status-badge status-${r.status}">${formatStatus(r.status)}</span></td>
-            <td class="anon-badge">${r.is_anonymous ? '🙈 Oui' : '👤 Non'}</td>
-            <td class="date-cell">${fmtDate(r.created_at)}</td>
-            <td class="date-cell">${fmtDate(r.updated_at)}</td>
-            <td>
-                <button class="btn-row-action" data-id="${r.id}" title="Voir le détail">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                </button>
-            </td>
-        </tr>
-    `).join('');
-
-    // Click row or button → open drawer
-    tableBody.querySelectorAll('tr[data-id]').forEach(row => {
+    
+    let html = '';
+    state.reports.forEach(report => {
+        const statusClass = `status-${report.status}`;
+        const statusLabel = {
+            open: 'Ouvert',
+            in_progress: 'En cours',
+            waiting_info: 'Attente info',
+            closed_founded: 'Clôturé fondé',
+            closed_unfounded: 'Clôturé non fondé'
+        }[report.status] || report.status;
+        
+        html += `
+            <tr class="row-enter" data-report-id="${report.id}">
+                <td class="code-cell">${escapeHtml(report.tracking_code)}</td>
+                <td class="category-cell">${escapeHtml(report.category)}</td>
+                <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
+                <td class="anon-badge">${report.is_anonymous ? '👤 Anonyme' : 'Identifié'}</td>
+                <td class="date-cell" title="${formatDate(report.created_at)}">${formatRelativeDate(report.created_at)}</td>
+                <td class="date-cell" title="${formatDate(report.updated_at)}">${formatRelativeDate(report.updated_at)}</td>
+                <td><button class="btn-row-action" data-action="view" data-id="${report.id}" title="Voir détails">👁️</button></td>
+            </tr>
+        `;
+    });
+    
+    tbody.innerHTML = html;
+    elements.tableCount.textContent = `${state.reports.length} résultat${state.reports.length > 1 ? 's' : ''} (total ${state.totalReports})`;
+    
+    // Attacher les événements sur les lignes et boutons
+    tbody.querySelectorAll('tr[data-report-id]').forEach(row => {
         row.addEventListener('click', (e) => {
-            if (e.target.closest('.btn-row-action')) return; // handled below
-            openDrawer(row.dataset.id);
+            if (e.target.closest('button')) return; // ne pas ouvrir si clic sur bouton
+            const id = row.dataset.reportId;
+            openDrawer(id);
         });
     });
-    tableBody.querySelectorAll('.btn-row-action').forEach(btn => {
+    tbody.querySelectorAll('.btn-row-action').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
-            openDrawer(btn.dataset.id);
+            const id = btn.dataset.id;
+            openDrawer(id);
         });
     });
 }
 
-// ─── Sort ─────────────────────────────────────────────────────
-function bindSort() {
-    document.getElementById('sortSelect').addEventListener('change', e => {
-        filterState.sort = e.target.value;
-        currentPage = 1;
-        applyFilters();
-    });
+function updatePagination() {
+    const totalPages = Math.ceil(state.totalReports / state.limit) || 1;
+    elements.pageNum.textContent = state.currentPage;
+    elements.pageTotal.textContent = totalPages;
+    elements.btnPrevPage.disabled = state.currentPage <= 1;
+    elements.btnNextPage.disabled = state.currentPage >= totalPages;
 }
 
-// ─── Pagination ───────────────────────────────────────────────
-function bindPagination() {
-    btnPrevPage.addEventListener('click', () => { currentPage--; renderTable(); });
-    btnNextPage.addEventListener('click', () => { currentPage++; renderTable(); });
+// ============================================================
+// GESTION DU DRAWER
+// ============================================================
+async function openDrawer(reportId) {
+    state.drawerReportId = reportId;
+    elements.drawerOverlay.classList.remove('hidden');
+    elements.detailDrawer.classList.remove('hidden');
+    elements.drawerContent.innerHTML = '<div class="drawer-loading">Chargement...</div>';
+    
+    try {
+        // Récupérer les détails du signalement
+        const report = await apiCall(`/api/reports/${reportId}`);
+        // Récupérer les messages
+        const messagesData = await apiCall(`/api/reports/${reportId}/messages?limit=50`);
+        state.drawerMessages = messagesData.messages || [];
+        
+        renderDrawerContent(report, state.drawerMessages);
+    } catch (error) {
+        showToast('Erreur lors du chargement des détails', 'error');
+        closeDrawer();
+    }
 }
 
-// ─── Drawer ───────────────────────────────────────────────────
-function bindDrawer() {
-    drawerClose.addEventListener('click', closeDrawer);
-    drawerOverlay.addEventListener('click', closeDrawer);
-    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
+function renderDrawerContent(report, messages) {
+    const statusLabel = {
+        open: 'Ouvert',
+        in_progress: 'En cours',
+        waiting_info: 'Attente info',
+        closed_founded: 'Clôturé (fondé)',
+        closed_unfounded: 'Clôturé (non fondé)'
+    }[report.status] || report.status;
+    
+    const isClosed = report.status.startsWith('closed');
+    const canChangeStatus = ['hr', 'legal', 'admin'].includes(state.user?.role) && !isClosed;
+    
+    let attachmentsHtml = '';
+    if (report.attachments && report.attachments.length > 0) {
+        attachmentsHtml = `
+            <div class="dw-section">
+                <div class="dw-section-title">Pièces jointes</div>
+                <div style="display:flex; flex-direction:column; gap:6px;">
+                    ${report.attachments.map(att => `
+                        <a href="/api/attachments/${att.id}" target="_blank" style="color:var(--accent); text-decoration:none; font-size:0.85rem;">
+                            📎 ${escapeHtml(att.filename)} (${(att.filesize/1024).toFixed(1)} Ko)
+                        </a>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+    
+    let messagesHtml = '';
+    if (messages.length > 0) {
+        messagesHtml = messages.map(msg => `
+            <div class="dw-message ${msg.sender_role === 'system' ? 'system-msg' : ''}">
+                <div class="dw-msg-header">
+                    <span class="dw-msg-sender">${msg.is_anonymous ? 'Anonyme' : (msg.sender_role === 'system' ? 'Système' : (msg.sender_id ? 'Utilisateur' : 'Inconnu'))}</span>
+                    <span class="dw-msg-date">${formatRelativeDate(msg.created_at)}</span>
+                </div>
+                <div class="dw-msg-body">${escapeHtml(msg.content).replace(/\n/g, '<br>')}</div>
+            </div>
+        `).join('');
+    } else {
+        messagesHtml = '<div style="color:var(--text-muted); text-align:center; padding:12px;">Aucun message</div>';
+    }
+    
+    let statusFormHtml = '';
+    if (canChangeStatus) {
+        statusFormHtml = `
+            <div class="dw-section">
+                <div class="dw-section-title">Changer le statut</div>
+                <div class="dw-status-form">
+                    <select id="dwStatusSelect">
+                        <option value="open" ${report.status === 'open' ? 'selected' : ''}>Ouvert</option>
+                        <option value="in_progress" ${report.status === 'in_progress' ? 'selected' : ''}>En cours</option>
+                        <option value="waiting_info" ${report.status === 'waiting_info' ? 'selected' : ''}>Attente info</option>
+                        <option value="closed_founded" ${report.status === 'closed_founded' ? 'selected' : ''}>Clôturé fondé</option>
+                        <option value="closed_unfounded" ${report.status === 'closed_unfounded' ? 'selected' : ''}>Clôturé non fondé</option>
+                    </select>
+                    <input type="text" id="dwCloseReason" placeholder="Motif (si clôture)" style="${report.status.startsWith('closed') ? '' : 'display:none;'}">
+                    <button class="btn-status-update" id="dwUpdateStatusBtn">Mettre à jour</button>
+                </div>
+            </div>
+        `;
+    }
+    
+    let replyFormHtml = '';
+    if (!isClosed) {
+        replyFormHtml = `
+            <div class="dw-section">
+                <div class="dw-section-title">Répondre</div>
+                <div class="dw-reply-area">
+                    <textarea id="dwReplyText" placeholder="Votre message..."></textarea>
+                    <label style="display:flex; align-items:center; gap:8px; font-size:0.8rem; color:var(--text-muted);">
+                        <input type="checkbox" id="dwReplyAnon"> Anonyme
+                    </label>
+                    <button class="btn-send-msg" id="dwSendMsgBtn">Envoyer</button>
+                </div>
+            </div>
+        `;
+    }
+    
+    elements.drawerTitle.textContent = `Signalement ${report.tracking_code}`;
+    elements.drawerContent.innerHTML = `
+        <div class="dw-section">
+            <div class="tracking-code">${escapeHtml(report.tracking_code)}</div>
+        </div>
+        <div class="dw-section">
+            <div class="dw-section-title">Informations</div>
+            <div class="dw-meta-grid">
+                <div class="dw-meta-item"><div class="dw-meta-label">Statut</div><div class="dw-meta-value">${statusLabel}</div></div>
+                <div class="dw-meta-item"><div class="dw-meta-label">Catégorie</div><div class="dw-meta-value">${escapeHtml(report.category)}</div></div>
+                <div class="dw-meta-item"><div class="dw-meta-label">Créé le</div><div class="dw-meta-value">${formatDate(report.created_at)}</div></div>
+                <div class="dw-meta-item"><div class="dw-meta-label">Anonyme</div><div class="dw-meta-value">${report.is_anonymous ? 'Oui' : 'Non'}</div></div>
+            </div>
+        </div>
+        <div class="dw-section">
+            <div class="dw-section-title">Description</div>
+            <div class="dw-description">${escapeHtml(report.description).replace(/\n/g, '<br>')}</div>
+        </div>
+        ${attachmentsHtml}
+        ${statusFormHtml}
+        <div class="dw-section">
+            <div class="dw-section-title">Messages (${messages.length})</div>
+            <div class="dw-messages" id="dwMessagesContainer">${messagesHtml}</div>
+        </div>
+        ${replyFormHtml}
+    `;
+    
+    // Attacher les événements du drawer
+    if (canChangeStatus) {
+        const statusSelect = document.getElementById('dwStatusSelect');
+        const reasonInput = document.getElementById('dwCloseReason');
+        statusSelect.addEventListener('change', () => {
+            if (statusSelect.value.startsWith('closed')) {
+                reasonInput.style.display = 'block';
+            } else {
+                reasonInput.style.display = 'none';
+            }
+        });
+        document.getElementById('dwUpdateStatusBtn').addEventListener('click', () => updateReportStatus(report.id));
+    }
+    if (!isClosed) {
+        document.getElementById('dwSendMsgBtn').addEventListener('click', () => sendMessage(report.id));
+    }
 }
 
-function openDrawer(reportId) {
-    detailDrawer.classList.remove('hidden');
-    drawerOverlay.classList.remove('hidden');
-    drawerContent.innerHTML = '<div class="drawer-loading">Chargement…</div>';
-    drawerTitle.textContent = 'Signalement';
-    loadDrawerContent(reportId);
+async function updateReportStatus(reportId) {
+    const statusSelect = document.getElementById('dwStatusSelect');
+    const reasonInput = document.getElementById('dwCloseReason');
+    const newStatus = statusSelect.value;
+    const closeReason = newStatus.startsWith('closed') ? reasonInput.value.trim() : undefined;
+    
+    if (newStatus.startsWith('closed') && !closeReason) {
+        showToast('Le motif de clôture est obligatoire', 'warning');
+        return;
+    }
+    
+    try {
+        await apiCall(`/api/reports/${reportId}/status`, {
+            method: 'PATCH',
+            body: JSON.stringify({ status: newStatus, close_reason: closeReason })
+        });
+        showToast('Statut mis à jour', 'success');
+        closeDrawer();
+        fetchReports(); // Rafraîchir la liste
+    } catch (error) {
+        showToast(error.message || 'Erreur lors de la mise à jour', 'error');
+    }
+}
+
+async function sendMessage(reportId) {
+    const textarea = document.getElementById('dwReplyText');
+    const anonCheck = document.getElementById('dwReplyAnon');
+    const content = textarea.value.trim();
+    if (!content) {
+        showToast('Le message ne peut pas être vide', 'warning');
+        return;
+    }
+    
+    try {
+        await apiCall(`/api/reports/${reportId}/messages`, {
+            method: 'POST',
+            body: JSON.stringify({ content, isAnonymous: anonCheck.checked })
+        });
+        showToast('Message envoyé', 'success');
+        // Recharger les messages
+        const messagesData = await apiCall(`/api/reports/${reportId}/messages?limit=50`);
+        state.drawerMessages = messagesData.messages || [];
+        // Mettre à jour la section messages dans le drawer
+        const container = document.getElementById('dwMessagesContainer');
+        if (container) {
+            let html = '';
+            state.drawerMessages.forEach(msg => {
+                html += `
+                    <div class="dw-message ${msg.sender_role === 'system' ? 'system-msg' : ''}">
+                        <div class="dw-msg-header">
+                            <span class="dw-msg-sender">${msg.is_anonymous ? 'Anonyme' : (msg.sender_role === 'system' ? 'Système' : 'Utilisateur')}</span>
+                            <span class="dw-msg-date">${formatRelativeDate(msg.created_at)}</span>
+                        </div>
+                        <div class="dw-msg-body">${escapeHtml(msg.content).replace(/\n/g, '<br>')}</div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html || '<div style="color:var(--text-muted); text-align:center; padding:12px;">Aucun message</div>';
+            textarea.value = '';
+        }
+    } catch (error) {
+        showToast(error.message || 'Erreur lors de l\'envoi', 'error');
+    }
 }
 
 function closeDrawer() {
-    detailDrawer.classList.add('hidden');
-    drawerOverlay.classList.add('hidden');
+    elements.drawerOverlay.classList.add('hidden');
+    elements.detailDrawer.classList.add('hidden');
+    state.drawerReportId = null;
+    state.drawerMessages = [];
 }
 
-async function loadDrawerContent(reportId) {
-    try {
-        const report = await apiFetch(`/api/reports/${reportId}`);
-        drawerTitle.textContent = escapeHtml(report.category || 'Signalement');
-        renderDrawer(report);
-    } catch (err) {
-        drawerContent.innerHTML = `<div class="drawer-loading" style="color:var(--danger)">Erreur de chargement.</div>`;
-    }
+// ============================================================
+// GESTION DES ÉVÉNEMENTS
+// ============================================================
+function bindEvents() {
+    // Logout
+    elements.btnLogout.addEventListener('click', logout);
+    
+    // Filtres
+    elements.filterSearch.addEventListener('input', debounce(() => {
+        state.filters.search = elements.filterSearch.value;
+        state.currentPage = 1;
+        fetchReports();
+    }, 300));
+    
+    elements.filterCategory.addEventListener('change', () => {
+        state.filters.category = elements.filterCategory.value;
+        state.currentPage = 1;
+        fetchReports();
+    });
+    
+    elements.filterDateFrom.addEventListener('change', () => {
+        state.filters.dateFrom = elements.filterDateFrom.value;
+        state.currentPage = 1;
+        fetchReports();
+    });
+    
+    elements.filterDateTo.addEventListener('change', () => {
+        state.filters.dateTo = elements.filterDateTo.value;
+        state.currentPage = 1;
+        fetchReports();
+    });
+    
+    elements.filterAnon.addEventListener('change', () => {
+        state.filters.isAnonymous = elements.filterAnon.value;
+        state.currentPage = 1;
+        fetchReports();
+    });
+    
+    elements.btnResetFilters.addEventListener('click', () => {
+        elements.filterSearch.value = '';
+        elements.filterCategory.value = '';
+        elements.filterDateFrom.value = '';
+        elements.filterDateTo.value = '';
+        elements.filterAnon.value = '';
+        state.filters = { search: '', category: '', dateFrom: '', dateTo: '', isAnonymous: '', closed: 'open' };
+        document.querySelectorAll('.pill-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelector('.pill-btn[data-val="open"]').classList.add('active');
+        state.sort = 'created_at-desc';
+        elements.sortSelect.value = 'created_at-desc';
+        state.currentPage = 1;
+        fetchReports();
+    });
+    
+    // Toggle closed
+    elements.toggleClosed.querySelectorAll('.pill-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            elements.toggleClosed.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            state.filters.closed = btn.dataset.val;
+            state.currentPage = 1;
+            fetchReports();
+        });
+    });
+    
+    // Tri
+    elements.sortSelect.addEventListener('change', () => {
+        state.sort = elements.sortSelect.value;
+        state.currentPage = 1;
+        fetchReports();
+    });
+    
+    // Pagination
+    elements.btnPrevPage.addEventListener('click', () => {
+        if (state.currentPage > 1) {
+            state.currentPage--;
+            fetchReports();
+        }
+    });
+    
+    elements.btnNextPage.addEventListener('click', () => {
+        const totalPages = Math.ceil(state.totalReports / state.limit);
+        if (state.currentPage < totalPages) {
+            state.currentPage++;
+            fetchReports();
+        }
+    });
+    
+    // Drawer
+    elements.drawerClose.addEventListener('click', closeDrawer);
+    elements.drawerOverlay.addEventListener('click', closeDrawer);
+    
+    // Live polling (toutes les 30 secondes)
+    state.pollingInterval = setInterval(() => {
+        if (!state.drawerReportId) {
+            fetchReports();
+        }
+    }, 30000);
 }
 
-function renderDrawer(report) {
-    const canUpdate = ['hr', 'legal', 'admin'].includes(currentUser.role)
-        && !report.status.startsWith('closed');
-
-    const messagesHtml = report.messages?.length
-        ? report.messages.map(m => {
-            const isSystem = m.sender_role === 'system';
-            const sender   = isSystem ? '⚙️ Système' : (m.is_anonymous ? 'Anonyme' : m.sender_role.toUpperCase());
-            return `<div class="dw-message ${isSystem ? 'system-msg' : ''}">
-                <div class="dw-msg-header">
-                    <span class="dw-msg-sender">${escapeHtml(sender)}</span>
-                    <span class="dw-msg-date">${fmtDatetime(m.created_at)}</span>
-                </div>
-                <div class="dw-msg-body">${escapeHtml(m.content)}</div>
-            </div>`;
-        }).join('')
-        : '<div style="color:var(--text-muted);font-size:.85rem;padding:8px 0">Aucun message.</div>';
-
-    const statusFormHtml = canUpdate ? `
-        <div class="dw-section">
-            <div class="dw-section-title">Changer le statut</div>
-            <div class="dw-status-form" id="dwStatusForm">
-                <select id="dwNewStatus">
-                    <option value="in_progress">En cours</option>
-                    <option value="waiting_info">En attente d'info</option>
-                    <option value="closed_founded">Clôturer (fondé)</option>
-                    <option value="closed_unfounded">Clôturer (non fondé)</option>
-                </select>
-                <input type="text" id="dwCloseReason" placeholder="Motif de clôture (requis si clôture)">
-                <button class="btn-status-update" id="dwBtnStatus">Mettre à jour</button>
-            </div>
-        </div>` : '';
-
-    drawerContent.innerHTML = `
-        <!-- Meta grid -->
-        <div class="dw-section">
-            <div class="dw-meta-grid">
-                <div class="dw-meta-item">
-                    <div class="dw-meta-label">Code de suivi</div>
-                    <div class="dw-meta-value"><span class="tracking-code">${escapeHtml(report.tracking_code)}</span></div>
-                </div>
-                <div class="dw-meta-item">
-                    <div class="dw-meta-label">Statut</div>
-                    <div class="dw-meta-value"><span class="status-badge status-${report.status}">${formatStatus(report.status)}</span></div>
-                </div>
-                <div class="dw-meta-item">
-                    <div class="dw-meta-label">Créé le</div>
-                    <div class="dw-meta-value">${fmtDatetime(report.created_at)}</div>
-                </div>
-                <div class="dw-meta-item">
-                    <div class="dw-meta-label">Anonyme</div>
-                    <div class="dw-meta-value">${report.is_anonymous ? '🙈 Oui' : '👤 Non'}</div>
-                </div>
-                ${report.closed_at ? `
-                <div class="dw-meta-item">
-                    <div class="dw-meta-label">Clôturé le</div>
-                    <div class="dw-meta-value">${fmtDatetime(report.closed_at)}</div>
-                </div>` : ''}
-                ${report.close_reason ? `
-                <div class="dw-meta-item" style="grid-column: 1/-1">
-                    <div class="dw-meta-label">Motif de clôture</div>
-                    <div class="dw-meta-value">${escapeHtml(report.close_reason)}</div>
-                </div>` : ''}
-            </div>
-        </div>
-
-        <!-- Description -->
-        <div class="dw-section">
-            <div class="dw-section-title">Description</div>
-            <div class="dw-description">${escapeHtml(report.description)}</div>
-        </div>
-
-        <!-- Attachments -->
-        ${report.attachments?.length ? `
-        <div class="dw-section">
-            <div class="dw-section-title">Pièces jointes (${report.attachments.length})</div>
-            <div style="display:flex;flex-wrap:wrap;gap:8px">
-                ${report.attachments.map(a => `
-                    <a href="/api/attachments/${a.id}" download="${escapeHtml(a.filename)}"
-                       style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--bg-elevated);border:1px solid var(--border-strong);border-radius:var(--radius-sm);color:var(--text-secondary);text-decoration:none;font-size:.8rem;transition:all var(--transition)"
-                       onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
-                       onmouseout="this.style.borderColor='var(--border-strong)';this.style.color='var(--text-secondary)'">
-                        📎 ${escapeHtml(a.filename)}
-                    </a>`).join('')}
-            </div>
-        </div>` : ''}
-
-        <!-- Status update -->
-        ${statusFormHtml}
-
-        <!-- Messages -->
-        <div class="dw-section">
-            <div class="dw-section-title">Conversation</div>
-            <div class="dw-messages" id="dwMessages">${messagesHtml}</div>
-            <div class="dw-reply-area">
-                <textarea id="dwReplyText" placeholder="Répondre au signalement…"></textarea>
-                <button class="btn-send-msg" id="dwBtnSend">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                    Envoyer
-                </button>
-            </div>
-        </div>
-    `;
-
-    // Scroll messages to bottom
-    const dwMsgs = document.getElementById('dwMessages');
-    if (dwMsgs) dwMsgs.scrollTop = dwMsgs.scrollHeight;
-
-    // Status update
-    if (canUpdate) {
-        document.getElementById('dwBtnStatus').addEventListener('click', () => updateStatus(report.id));
-    }
-
-    // Send message
-    document.getElementById('dwBtnSend').addEventListener('click', () => sendMessage(report.id));
-}
-
-// ─── Update status ────────────────────────────────────────────
-async function updateStatus(reportId) {
-    const newStatus   = document.getElementById('dwNewStatus').value;
-    const closeReason = document.getElementById('dwCloseReason').value.trim();
-
-    if (newStatus.startsWith('closed') && !closeReason) {
-        showToast('Un motif de clôture est requis.', 'warning');
-        document.getElementById('dwCloseReason').focus();
+// ============================================================
+// INITIALISATION
+// ============================================================
+async function init() {
+    const isAuthenticated = await checkSession();
+    if (!isAuthenticated) {
+        window.location.href = '/login.html';
         return;
     }
-
-    try {
-        const res = await apiFetch(`/api/reports/${reportId}/status`, {
-            method: 'PATCH',
-            body: JSON.stringify({ status: newStatus, close_reason: closeReason }),
-            headers: { 'Content-Type': 'application/json' },
-        });
-        if (res.success) {
-            showToast('Statut mis à jour.', 'success');
-            await fetchReports();
-            loadDrawerContent(reportId);
-        } else {
-            showToast('Erreur lors de la mise à jour.', 'error');
-        }
-    } catch (err) {
-        console.error(err);
-        showToast('Erreur réseau.', 'error');
-    }
+    
+    bindEvents();
+    await fetchReports();
+    
+    // Afficher l'indicateur "En direct"
+    elements.liveIndicator.style.display = 'flex';
 }
 
-// ─── Send message ─────────────────────────────────────────────
-async function sendMessage(reportId) {
-    const textarea = document.getElementById('dwReplyText');
-    const content  = textarea.value.trim();
-    if (!content) { showToast('Le message est vide.', 'warning'); return; }
+// Nettoyage au déchargement
+window.addEventListener('beforeunload', () => {
+    if (state.pollingInterval) clearInterval(state.pollingInterval);
+});
 
-    const btn = document.getElementById('dwBtnSend');
-    btn.disabled = true;
-    try {
-        const res = await apiFetch(`/api/reports/${reportId}/messages`, {
-            method: 'POST',
-            body: JSON.stringify({ content, isAnonymous: false }),
-            headers: { 'Content-Type': 'application/json' },
-        });
-        if (res.success) {
-            showToast('Message envoyé.', 'success');
-            loadDrawerContent(reportId);
-        } else {
-            showToast('Erreur envoi.', 'error');
-            btn.disabled = false;
-        }
-    } catch (err) {
-        console.error(err);
-        showToast('Erreur réseau.', 'error');
-        btn.disabled = false;
-    }
-}
-
-// ─── Logout ───────────────────────────────────────────────────
-async function handleLogout() {
-    await logout();
-    window.location.href = '/login/';
-}
-
-// ─── Toast ────────────────────────────────────────────────────
-function showToast(message, type = 'info') {
-    const icons = { success:'✅', error:'❌', warning:'⚠️', info:'ℹ️' };
-    const c = document.getElementById('toastContainer');
-    const t = document.createElement('div');
-    t.className = `toast toast-${type}`;
-    t.innerHTML = `
-        <span class="toast-icon">${icons[type]}</span>
-        <span class="toast-msg">${escapeHtml(message)}</span>
-        <button class="toast-close">✕</button>
-    `;
-    c.appendChild(t);
-    const remove = () => {
-        t.classList.add('toast-out');
-        t.addEventListener('animationend', () => t.remove(), { once: true });
-    };
-    t.querySelector('.toast-close').addEventListener('click', remove);
-    setTimeout(remove, 4000);
-}
-
-// ─── Helpers ──────────────────────────────────────────────────
-function escapeHtml(s) {
-    if (s == null) return '';
-    return String(s).replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[m]);
-}
-
-function formatStatus(s) {
-    return { open:'Ouvert', in_progress:'En cours', waiting_info:'Attente info',
-        closed_founded:'Clôturé fondé', closed_unfounded:'Clôturé non fondé' }[s] || s;
-}
-
-function fmtDate(d) {
-    if (!d) return '—';
-    return new Date(d).toLocaleDateString('fr-FR');
-}
-
-function fmtDatetime(d) {
-    if (!d) return '—';
-    return new Date(d).toLocaleString('fr-FR');
-}
-
-function debounce(fn, ms) {
-    let t;
-    return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
-}
+// Démarrer
+init();
