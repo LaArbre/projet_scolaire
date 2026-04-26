@@ -15,10 +15,6 @@ function isValidEmail(email) {
     return typeof email === 'string' && validator.isEmail(email) && email.length <= 255;
 }
 
-/**
- * Mot de passe fort : 8 caractères min, 1 majuscule, 1 minuscule, 1 chiffre, 1 symbole.
- * validator.isStrongPassword() est déjà disponible dans les dépendances.
- */
 function isValidPassword(password) {
     if (typeof password !== 'string') return false;
     return validator.isStrongPassword(password, {
@@ -51,18 +47,11 @@ function isPositiveInt(value) {
     return !isNaN(n) && n > 0;
 }
 
-/**
- * Valide qu'une valeur est une date ISO 8601 ou null/undefined.
- * Utilisé pour locked_until dans admin.js.
- */
 function isValidDateOrNull(value) {
     if (value === null || value === undefined || value === '') return true;
     return typeof value === 'string' && validator.isISO8601(value);
 }
 
-/**
- * Échappe les wildcards SQL LIKE pour éviter les full scans involontaires.
- */
 function escapeLike(str) {
     return str.replace(/[%_\\]/g, '\\$&');
 }

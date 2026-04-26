@@ -38,24 +38,17 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({
     storage,
     fileFilter,
-    limits: { fileSize: 10 * 1024 * 1024 }, // 10 Mo
+    limits: { fileSize: 10 * 1024 * 1024 },
 });
 
-/**
- * Sanitise le nom de fichier original avant stockage en base.
- * - Supprime les caractères de traversée de chemin et de contrôle
- * - Préserve uniquement les caractères alphanumériques, tirets, underscores, points
- * - Tronque à 200 caractères
- * - Conserve l'extension validée
- */
 function sanitizeFilename(originalname) {
     const ext  = path.extname(originalname).toLowerCase();
     const base = path.basename(originalname, ext)
-        .replace(/[^a-zA-Z0-9\-_ ]/g, '_')  // caractères non sûrs → underscore
-        .replace(/\.{2,}/g, '_')             // séquences de points → underscore
+        .replace(/[^a-zA-Z0-9\-_ ]/g, '_')
+        .replace(/\.{2,}/g, '_')
         .trim()
-        .substring(0, 200 - ext.length)      // tronque en laissant la place à l'extension
-        || 'fichier';                        // fallback si tout a été supprimé
+        .substring(0, 200 - ext.length)
+        || 'fichier';
     return base + ext;
 }
 

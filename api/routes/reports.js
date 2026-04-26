@@ -11,9 +11,6 @@ const {
 
 const router = express.Router();
 
-/**
- * Génère un code de suivi unique avec retry en cas de collision (contrainte UNIQUE en DB).
- */
 async function generateTrackingCode(db, maxRetries = 5) {
     for (let i = 0; i < maxRetries; i++) {
         const code = 'RPT-' + Date.now() + '-' + crypto.randomBytes(4).toString('hex').toUpperCase();
@@ -23,7 +20,6 @@ async function generateTrackingCode(db, maxRetries = 5) {
     throw new Error('Impossible de générer un code de suivi unique après plusieurs tentatives');
 }
 
-// ── POST /api/reports — Créer un signalement ─────────────────────────────────
 router.post('/', auth, upload.array('attachments', 5), async (req, res) => {
     try {
         const { title, category, description, is_anonymous } = req.body;
@@ -65,7 +61,6 @@ router.post('/', auth, upload.array('attachments', 5), async (req, res) => {
     }
 });
 
-// ── GET /api/reports — Liste paginée ─────────────────────────────────────────
 router.get('/', auth, async (req, res) => {
     try {
         const db     = getPool();
@@ -98,7 +93,6 @@ router.get('/', auth, async (req, res) => {
     }
 });
 
-// ── GET /api/reports/:id — Détail ────────────────────────────────────────────
 router.get('/:id', auth, async (req, res) => {
     try {
         if (!isPositiveInt(req.params.id))
@@ -135,7 +129,6 @@ router.get('/:id', auth, async (req, res) => {
     }
 });
 
-// ── PATCH /api/reports/:id/status — Changer le statut ────────────────────────
 router.patch('/:id/status', auth, checkRole(['hr', 'legal', 'admin']), async (req, res) => {
     try {
         if (!isPositiveInt(req.params.id))

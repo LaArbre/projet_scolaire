@@ -10,13 +10,10 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- Toast -->
     <div id="toastContainer" class="toast-container"></div>
 
-    <!-- Drawer overlay -->
     <div id="drawerOverlay" class="drawer-overlay hidden"></div>
 
-    <!-- Detail drawer -->
     <aside id="detailDrawer" class="detail-drawer hidden">
         <div class="drawer-header">
             <button id="drawerClose" class="drawer-close" title="Fermer">
@@ -30,7 +27,6 @@
     </aside>
 
     <div class="page-layout">
-        <!-- TOP BAR -->
         <header class="topbar">
             <div class="topbar-left">
                 <a href="/dashboard/" class="back-link">
@@ -58,7 +54,6 @@
         </header>
 
         <main class="main">
-            <!-- STATS ROW -->
             <section class="stats-row" id="statsRow">
                 <div class="stat-card" id="statOpen">
                     <div class="stat-value" id="cntOpen">—</div>
@@ -82,16 +77,13 @@
                 </div>
             </section>
 
-            <!-- FILTERS BAR -->
             <section class="filters-bar" id="filtersBar">
                 <div class="filters-left">
-                    <!-- Search -->
                     <div class="filter-group search-group">
                         <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                         <input type="text" id="filterSearch" class="filter-input filter-search" placeholder="Rechercher par code, catégorie…">
                     </div>
 
-                    <!-- Category -->
                     <div class="filter-group">
                         <select id="filterCategory" class="filter-select">
                             <option value="">Toutes catégories</option>
@@ -104,19 +96,16 @@
                         </select>
                     </div>
 
-                    <!-- Date from -->
                     <div class="filter-group">
                         <label class="filter-label">Du</label>
                         <input type="date" id="filterDateFrom" class="filter-input filter-date">
                     </div>
 
-                    <!-- Date to -->
                     <div class="filter-group">
                         <label class="filter-label">Au</label>
                         <input type="date" id="filterDateTo" class="filter-input filter-date">
                     </div>
 
-                    <!-- Anonymous -->
                     <div class="filter-group">
                         <select id="filterAnon" class="filter-select">
                             <option value="">Anonymat</option>
@@ -132,7 +121,6 @@
                 </div>
 
                 <div class="filters-right">
-                    <!-- Closed toggle -->
                     <div class="toggle-pill" id="toggleClosed">
                         <button class="pill-btn active" data-val="open">En cours</button>
                         <button class="pill-btn" data-val="closed">Clôturés</button>
@@ -141,7 +129,6 @@
                 </div>
             </section>
 
-            <!-- TABLE -->
             <section class="table-section">
                 <div class="table-meta">
                     <span id="tableCount" class="table-count">— résultats</span>
@@ -170,7 +157,6 @@
                             </tr>
                         </thead>
                         <tbody id="tableBody">
-                            <!-- skeleton -->
                             <tr class="skeleton-row"><td colspan="7"><div class="skeleton-line"></div></td></tr>
                             <tr class="skeleton-row"><td colspan="7"><div class="skeleton-line"></div></td></tr>
                             <tr class="skeleton-row"><td colspan="7"><div class="skeleton-line"></div></td></tr>
@@ -180,7 +166,6 @@
                     </table>
                 </div>
 
-                <!-- Pagination -->
                 <div class="pagination" id="pagination">
                     <button id="btnPrevPage" class="page-btn" disabled>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>

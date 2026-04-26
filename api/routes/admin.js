@@ -12,7 +12,6 @@ const {
 const router = express.Router();
 router.use(auth, checkRole(['admin']));
 
-// ── GET /api/admin/users ──────────────────────────────────────────────────────
 router.get('/users', async (req, res) => {
     try {
         const db = getPool();
@@ -27,7 +26,6 @@ router.get('/users', async (req, res) => {
     }
 });
 
-// ── POST /api/admin/users ─────────────────────────────────────────────────────
 router.post('/users', async (req, res) => {
     try {
         const { fullname, email, password, role } = req.body;
@@ -60,7 +58,6 @@ router.post('/users', async (req, res) => {
     }
 });
 
-// ── PATCH /api/admin/users/:id ────────────────────────────────────────────────
 router.patch('/users/:id', async (req, res) => {
     try {
         if (!isPositiveInt(req.params.id))
@@ -93,7 +90,6 @@ router.patch('/users/:id', async (req, res) => {
             updates.push('role = ?'); params.push(role);
         }
         if (locked_until !== undefined) {
-            // Valider le format de date avant d'insérer en base
             if (!isValidDateOrNull(locked_until))
                 return res.status(400).json({ error: 'Format de date invalide pour locked_until' });
             updates.push('locked_until = ?'); params.push(locked_until || null);
@@ -112,7 +108,6 @@ router.patch('/users/:id', async (req, res) => {
     }
 });
 
-// ── DELETE /api/admin/users/:id — Soft disable ────────────────────────────────
 router.delete('/users/:id', async (req, res) => {
     try {
         if (!isPositiveInt(req.params.id))

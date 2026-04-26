@@ -6,7 +6,6 @@ const { isPositiveInt } = require('../utils/validate');
 
 const router = express.Router({ mergeParams: true });
 
-// ── GET /api/reports/:reportId/messages ───────────────────────────────────────
 router.get('/', auth, async (req, res) => {
     try {
         if (!isPositiveInt(req.params.reportId))
@@ -46,10 +45,10 @@ router.get('/', auth, async (req, res) => {
         if (messages.length > 0) {
             const firstId = messages[0].id;
             const lastId  = messages[messages.length - 1].id;
-            const [[b]]   = await db.query(
-                'SELECT id FROM messages WHERE report_id = ? AND id < ? LIMIT 1', [reportId, lastId]);
-            const [[a]]   = await db.query(
-                'SELECT id FROM messages WHERE report_id = ? AND id > ? LIMIT 1', [reportId, firstId]);
+            const [[b]] = await db.query(
+                'SELECT id FROM messages WHERE report_id = ? AND id < ? LIMIT 1', [reportId, firstId]);
+            const [[a]] = await db.query(
+                'SELECT id FROM messages WHERE report_id = ? AND id > ? LIMIT 1', [reportId, lastId]);
             hasBefore = !!b;
             hasAfter  = !!a;
         }
@@ -61,7 +60,6 @@ router.get('/', auth, async (req, res) => {
     }
 });
 
-// ── POST /api/reports/:reportId/messages ──────────────────────────────────────
 router.post('/', auth, async (req, res) => {
     try {
         if (!isPositiveInt(req.params.reportId))
@@ -84,7 +82,6 @@ router.post('/', auth, async (req, res) => {
         if (req.session.user.role === 'employee' && reports[0].user_id !== req.session.user.id)
             return res.status(403).json({ error: 'Accès interdit' });
 
-        // Bloquer les messages sur un signalement clôturé
         if (reports[0].status.startsWith('closed'))
             return res.status(400).json({ error: 'Ce signalement est clôturé, impossible d\'ajouter un message' });
 

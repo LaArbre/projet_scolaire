@@ -40,9 +40,6 @@ export async function apiFetch(url, options = {}) {
     return res.json();
 }
 
-/**
- * Échappe les caractères HTML dangereux (protection XSS côté affichage)
- */
 export function escapeHtml(str) {
     if (typeof str !== 'string') return '';
     return str

@@ -24,7 +24,6 @@ router.get('/', async (req, res) => {
             query += ' AND al.user_id = ?'; params.push(parseInt(userId, 10));
         }
         if (action && typeof action === 'string') {
-            // Échappement des wildcards SQL LIKE pour éviter les full scans
             query += ' AND al.action LIKE ?';
             params.push(`%${escapeLike(action.substring(0, 50))}%`);
         }

@@ -6,7 +6,6 @@ const { isValidEmail, isValidPassword, isValidFullname } = require('../utils/val
 
 const router = express.Router();
 
-// ── POST /api/register ────────────────────────────────────────────────────────
 router.post('/register', async (req, res) => {
     try {
         let { fullname, email, password } = req.body;
@@ -47,7 +46,6 @@ router.post('/register', async (req, res) => {
     }
 });
 
-// ── POST /api/login ───────────────────────────────────────────────────────────
 router.post('/login', async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -122,7 +120,6 @@ router.post('/login', async (req, res) => {
     }
 });
 
-// ── POST /api/logout ──────────────────────────────────────────────────────────
 router.post('/logout', (req, res) => {
     req.session.destroy((err) => {
         if (err) return res.status(500).json({ error: true });
@@ -131,7 +128,6 @@ router.post('/logout', (req, res) => {
     });
 });
 
-// ── GET /api/check-session ────────────────────────────────────────────────────
 router.get('/check-session', (req, res) => {
     if (req.session?.user) {
         res.json({ authenticated: true, user: req.session.user });
@@ -140,7 +136,6 @@ router.get('/check-session', (req, res) => {
     }
 });
 
-// ── GET /api/csrf-token ───────────────────────────────────────────────────────
 router.get('/csrf-token', (req, res) => {
     res.json({ csrfToken: req.csrfToken() });
 });

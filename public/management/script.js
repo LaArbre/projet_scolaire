@@ -1,6 +1,3 @@
-// ============================================================
-// GESTION DE L'ÉTAT GLOBAL
-// ============================================================
 const state = {
     user: null,
     csrfToken: null,
@@ -14,7 +11,7 @@ const state = {
         dateFrom: '',
         dateTo: '',
         isAnonymous: '',
-        closed: 'open' // 'open', 'closed', 'all'
+        closed: 'open'
     },
     sort: 'created_at-desc',
     stats: {
@@ -29,22 +26,18 @@ const state = {
     pollingInterval: null
 };
 
-// Éléments DOM fréquemment utilisés
 const elements = {
-    // Topbar
     topbarAvatar: document.getElementById('topbarAvatar'),
     topbarName: document.getElementById('topbarName'),
     btnLogout: document.getElementById('btnLogout'),
     liveIndicator: document.getElementById('liveIndicator'),
 
-    // Stats
     cntOpen: document.getElementById('cntOpen'),
     cntProgress: document.getElementById('cntProgress'),
     cntWaiting: document.getElementById('cntWaiting'),
     cntClosed: document.getElementById('cntClosed'),
     cntTotal: document.getElementById('cntTotal'),
 
-    // Filtres
     filterSearch: document.getElementById('filterSearch'),
     filterCategory: document.getElementById('filterCategory'),
     filterDateFrom: document.getElementById('filterDateFrom'),
@@ -54,7 +47,6 @@ const elements = {
     toggleClosed: document.getElementById('toggleClosed'),
     sortSelect: document.getElementById('sortSelect'),
 
-    // Table
     tableBody: document.getElementById('tableBody'),
     tableCount: document.getElementById('tableCount'),
     pageNum: document.getElementById('pageNum'),
@@ -62,33 +54,24 @@ const elements = {
     btnPrevPage: document.getElementById('btnPrevPage'),
     btnNextPage: document.getElementById('btnNextPage'),
 
-    // Drawer
     drawerOverlay: document.getElementById('drawerOverlay'),
     detailDrawer: document.getElementById('detailDrawer'),
     drawerClose: document.getElementById('drawerClose'),
     drawerTitle: document.getElementById('drawerTitle'),
     drawerContent: document.getElementById('drawerContent'),
 
-    // Toast
     toastContainer: document.getElementById('toastContainer')
 };
 
-// ============================================================
-// UTILITAIRES
-// ============================================================
-
-// Toast
 function showToast(message, type = 'info', duration = 4000) {
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
-    const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : type === 'warning' ? '⚠' : 'ℹ';
     toast.innerHTML = `
-        <span class="toast-icon">${icon}</span>
         <span class="toast-msg">${escapeHtml(message)}</span>
         <button class="toast-close" aria-label="Fermer">×</button>
     `;
     elements.toastContainer.appendChild(toast);
-    
+
     const closeBtn = toast.querySelector('.toast-close');
     const removeToast = () => {
         toast.classList.add('toast-out');
@@ -104,7 +87,6 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// Formatage de date relative
 function formatRelativeDate(dateString) {
     const date = new Date(dateString);
     const now = new Date();
@@ -130,7 +112,6 @@ function formatDate(dateString) {
     });
 }
 
-// Debounce pour la recherche
 function debounce(fn, delay) {
     let timer;
     return (...args) => {
@@ -139,9 +120,6 @@ function debounce(fn, delay) {
     };
 }
 
-// ============================================================
-// API CALLS (avec gestion CSRF et erreurs)
-// ============================================================
 async function apiCall(url, options = {}) {
     const headers = {
         'Content-Type': 'application/json',
@@ -168,14 +146,12 @@ async function apiCall(url, options = {}) {
     }
 }
 
-// Vérification de session et récupération CSRF
 async function checkSession() {
     try {
         const data = await apiCall('/api/check-session');
         if (data.authenticated) {
             state.user = data.user;
             updateUserUI();
-            // Récupérer le token CSRF
             const csrfData = await apiCall('/api/csrf-token');
             state.csrfToken = csrfData.csrfToken;
             return true;
@@ -189,45 +165,38 @@ async function checkSession() {
 async function logout() {
     try {
         await apiCall('/api/logout', { method: 'POST' });
-        window.location.href = '/login.html'; // redirection vers login
+        window.location.href = '/login/';
     } catch (error) {
         showToast('Erreur lors de la déconnexion', 'error');
     }
 }
 
-// Récupération des signalements avec filtres
 async function fetchReports() {
     try {
         const params = new URLSearchParams();
         params.append('limit', state.limit);
         params.append('offset', (state.currentPage - 1) * state.limit);
-        
+
         if (state.filters.category) params.append('category', state.filters.category);
         if (state.filters.dateFrom) params.append('created_after', state.filters.dateFrom);
         if (state.filters.dateTo) params.append('created_before', state.filters.dateTo);
         if (state.filters.isAnonymous !== '') params.append('is_anonymous', state.filters.isAnonymous);
         if (state.filters.search) params.append('search', state.filters.search);
-        
-        if (state.filters.closed === 'open') {
-        } else if (state.filters.closed === 'closed') {
-        }
-        
-        const [sortField, sortOrder] = state.sort.split('-');
 
         const data = await apiCall(`/api/reports?${params.toString()}`);
-        
+
         let reports = data.reports || [];
         state.totalReports = data.total || 0;
-        
+
         reports = filterReportsClientSide(reports);
         reports = sortReportsClientSide(reports);
-        
+
         state.reports = reports;
         renderTable();
         updatePagination();
-        
+
         await fetchStats();
-        
+
     } catch (error) {
         showToast('Erreur lors du chargement des signalements', 'error');
         console.error(error);
@@ -237,21 +206,18 @@ async function fetchReports() {
     }
 }
 
-// Filtrage côté client pour search et closed
 function filterReportsClientSide(reports) {
     return reports.filter(report => {
-        // Filtre search (code ou catégorie)
         if (state.filters.search) {
             const searchTerm = state.filters.search.toLowerCase();
             const codeMatch = report.tracking_code?.toLowerCase().includes(searchTerm);
             const catMatch = report.category?.toLowerCase().includes(searchTerm);
             if (!codeMatch && !catMatch) return false;
         }
-        
-        // Filtre closed
+
         if (state.filters.closed === 'open' && report.status?.startsWith('closed')) return false;
         if (state.filters.closed === 'closed' && !report.status?.startsWith('closed')) return false;
-        
+
         return true;
     });
 }
@@ -271,14 +237,12 @@ function sortReportsClientSide(reports) {
     });
 }
 
-// Récupération des statistiques (en faisant un appel avec grande limite pour les rôles admin/hr/legal)
 async function fetchStats() {
     if (!state.user) return;
     try {
-        let statsUrl = '/api/reports?limit=1000';
-        const data = await apiCall(statsUrl);
+        const data = await apiCall('/api/reports?limit=1000');
         const reports = data.reports || [];
-        
+
         const stats = {
             open: 0,
             in_progress: 0,
@@ -286,14 +250,14 @@ async function fetchStats() {
             closed: 0,
             total: data.total || reports.length
         };
-        
+
         reports.forEach(r => {
             if (r.status === 'open') stats.open++;
             else if (r.status === 'in_progress') stats.in_progress++;
             else if (r.status === 'waiting_info') stats.waiting_info++;
             else if (r.status.startsWith('closed')) stats.closed++;
         });
-        
+
         state.stats = stats;
         updateStatsUI();
     } catch (error) {
@@ -301,9 +265,6 @@ async function fetchStats() {
     }
 }
 
-// ============================================================
-// RENDU UI
-// ============================================================
 function updateUserUI() {
     if (state.user) {
         elements.topbarName.textContent = state.user.fullname || state.user.email;
@@ -323,11 +284,11 @@ function updateStatsUI() {
 function renderTable() {
     const tbody = elements.tableBody;
     if (state.reports.length === 0) {
-        tbody.innerHTML = `<tr class="empty-row"><td colspan="7"><span class="empty-icon">📋</span>Aucun signalement trouvé</td></tr>`;
+        tbody.innerHTML = `<tr class="empty-row"><td colspan="7">Aucun signalement trouvé</td></tr>`;
         elements.tableCount.textContent = `0 résultat`;
         return;
     }
-    
+
     let html = '';
     state.reports.forEach(report => {
         const statusClass = `status-${report.status}`;
@@ -338,27 +299,26 @@ function renderTable() {
             closed_founded: 'Clôturé fondé',
             closed_unfounded: 'Clôturé non fondé'
         }[report.status] || report.status;
-        
+
         html += `
             <tr class="row-enter" data-report-id="${report.id}">
                 <td class="code-cell">${escapeHtml(report.tracking_code)}</td>
                 <td class="category-cell">${escapeHtml(report.category)}</td>
                 <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
-                <td class="anon-badge">${report.is_anonymous ? '👤 Anonyme' : 'Identifié'}</td>
+                <td class="anon-badge">${report.is_anonymous ? 'Anonyme' : 'Identifié'}</td>
                 <td class="date-cell" title="${formatDate(report.created_at)}">${formatRelativeDate(report.created_at)}</td>
                 <td class="date-cell" title="${formatDate(report.updated_at)}">${formatRelativeDate(report.updated_at)}</td>
-                <td><button class="btn-row-action" data-action="view" data-id="${report.id}" title="Voir détails">👁️</button></td>
+                <td><button class="btn-row-action" data-action="view" data-id="${report.id}" title="Voir détails">Voir</button></td>
             </tr>
         `;
     });
-    
+
     tbody.innerHTML = html;
     elements.tableCount.textContent = `${state.reports.length} résultat${state.reports.length > 1 ? 's' : ''} (total ${state.totalReports})`;
-    
-    // Attacher les événements sur les lignes et boutons
+
     tbody.querySelectorAll('tr[data-report-id]').forEach(row => {
         row.addEventListener('click', (e) => {
-            if (e.target.closest('button')) return; // ne pas ouvrir si clic sur bouton
+            if (e.target.closest('button')) return;
             const id = row.dataset.reportId;
             openDrawer(id);
         });
@@ -380,20 +340,17 @@ function updatePagination() {
     elements.btnNextPage.disabled = state.currentPage >= totalPages;
 }
 
-// ============================================================
-// GESTION DU DRAWER
-// ============================================================
 async function openDrawer(reportId) {
     state.drawerReportId = reportId;
     elements.drawerOverlay.classList.remove('hidden');
     elements.detailDrawer.classList.remove('hidden');
     elements.drawerContent.innerHTML = '<div class="drawer-loading">Chargement...</div>';
-    
+
     try {
         const report = await apiCall(`/api/reports/${reportId}`);
         const messagesData = await apiCall(`/api/reports/${reportId}/messages?limit=50`);
         state.drawerMessages = messagesData.messages || [];
-        
+
         renderDrawerContent(report, state.drawerMessages);
     } catch (error) {
         showToast('Erreur lors du chargement des détails', 'error');
@@ -409,10 +366,10 @@ function renderDrawerContent(report, messages) {
         closed_founded: 'Clôturé (fondé)',
         closed_unfounded: 'Clôturé (non fondé)'
     }[report.status] || report.status;
-    
+
     const isClosed = report.status.startsWith('closed');
     const canChangeStatus = ['hr', 'legal', 'admin'].includes(state.user?.role) && !isClosed;
-    
+
     let attachmentsHtml = '';
     if (report.attachments && report.attachments.length > 0) {
         attachmentsHtml = `
@@ -421,14 +378,14 @@ function renderDrawerContent(report, messages) {
                 <div style="display:flex; flex-direction:column; gap:6px;">
                     ${report.attachments.map(att => `
                         <a href="/api/attachments/${att.id}" target="_blank" style="color:var(--accent); text-decoration:none; font-size:0.85rem;">
-                            📎 ${escapeHtml(att.filename)} (${(att.filesize/1024).toFixed(1)} Ko)
+                            ${escapeHtml(att.filename)} (${(att.filesize/1024).toFixed(1)} Ko)
                         </a>
                     `).join('')}
                 </div>
             </div>
         `;
     }
-    
+
     let messagesHtml = '';
     if (messages.length > 0) {
         messagesHtml = messages.map(msg => `
@@ -443,7 +400,7 @@ function renderDrawerContent(report, messages) {
     } else {
         messagesHtml = '<div style="color:var(--text-muted); text-align:center; padding:12px;">Aucun message</div>';
     }
-    
+
     let statusFormHtml = '';
     if (canChangeStatus) {
         statusFormHtml = `
@@ -463,7 +420,7 @@ function renderDrawerContent(report, messages) {
             </div>
         `;
     }
-    
+
     let replyFormHtml = '';
     if (!isClosed) {
         replyFormHtml = `
@@ -479,7 +436,7 @@ function renderDrawerContent(report, messages) {
             </div>
         `;
     }
-    
+
     elements.drawerTitle.textContent = `Signalement ${report.tracking_code}`;
     elements.drawerContent.innerHTML = `
         <div class="dw-section">
@@ -506,8 +463,7 @@ function renderDrawerContent(report, messages) {
         </div>
         ${replyFormHtml}
     `;
-    
-    // Attacher les événements du drawer
+
     if (canChangeStatus) {
         const statusSelect = document.getElementById('dwStatusSelect');
         const reasonInput = document.getElementById('dwCloseReason');
@@ -530,12 +486,12 @@ async function updateReportStatus(reportId) {
     const reasonInput = document.getElementById('dwCloseReason');
     const newStatus = statusSelect.value;
     const closeReason = newStatus.startsWith('closed') ? reasonInput.value.trim() : undefined;
-    
+
     if (newStatus.startsWith('closed') && !closeReason) {
         showToast('Le motif de clôture est obligatoire', 'warning');
         return;
     }
-    
+
     try {
         await apiCall(`/api/reports/${reportId}/status`, {
             method: 'PATCH',
@@ -543,7 +499,7 @@ async function updateReportStatus(reportId) {
         });
         showToast('Statut mis à jour', 'success');
         closeDrawer();
-        fetchReports(); // Rafraîchir la liste
+        fetchReports();
     } catch (error) {
         showToast(error.message || 'Erreur lors de la mise à jour', 'error');
     }
@@ -557,17 +513,15 @@ async function sendMessage(reportId) {
         showToast('Le message ne peut pas être vide', 'warning');
         return;
     }
-    
+
     try {
         await apiCall(`/api/reports/${reportId}/messages`, {
             method: 'POST',
             body: JSON.stringify({ content, isAnonymous: anonCheck.checked })
         });
         showToast('Message envoyé', 'success');
-        // Recharger les messages
         const messagesData = await apiCall(`/api/reports/${reportId}/messages?limit=50`);
         state.drawerMessages = messagesData.messages || [];
-        // Mettre à jour la section messages dans le drawer
         const container = document.getElementById('dwMessagesContainer');
         if (container) {
             let html = '';
@@ -597,44 +551,39 @@ function closeDrawer() {
     state.drawerMessages = [];
 }
 
-// ============================================================
-// GESTION DES ÉVÉNEMENTS
-// ============================================================
 function bindEvents() {
-    // Logout
     elements.btnLogout.addEventListener('click', logout);
-    
-    // Filtres
+
     elements.filterSearch.addEventListener('input', debounce(() => {
         state.filters.search = elements.filterSearch.value;
         state.currentPage = 1;
         fetchReports();
     }, 300));
-    
+
     elements.filterCategory.addEventListener('change', () => {
         state.filters.category = elements.filterCategory.value;
         state.currentPage = 1;
         fetchReports();
     });
-    
+
     elements.filterDateFrom.addEventListener('change', () => {
         state.filters.dateFrom = elements.filterDateFrom.value;
         state.currentPage = 1;
         fetchReports();
     });
-    
+
     elements.filterDateTo.addEventListener('change', () => {
         state.filters.dateTo = elements.filterDateTo.value;
         state.currentPage = 1;
         fetchReports();
     });
-    
+
     elements.filterAnon.addEventListener('change', () => {
         state.filters.isAnonymous = elements.filterAnon.value;
         state.currentPage = 1;
         fetchReports();
     });
-    
+
     elements.btnResetFilters.addEventListener('click', () => {
         elements.filterSearch.value = '';
         elements.filterCategory.value = '';
@@ -649,8 +598,7 @@ function bindEvents() {
         state.currentPage = 1;
         fetchReports();
     });
-    
-    // Toggle closed
+
     elements.toggleClosed.querySelectorAll('.pill-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             elements.toggleClosed.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
@@ -660,22 +608,20 @@ function bindEvents() {
             fetchReports();
         });
     });
-    
-    // Tri
+
     elements.sortSelect.addEventListener('change', () => {
         state.sort = elements.sortSelect.value;
         state.currentPage = 1;
         fetchReports();
     });
-    
-    // Pagination
+
     elements.btnPrevPage.addEventListener('click', () => {
         if (state.currentPage > 1) {
             state.currentPage--;
             fetchReports();
         }
     });
-    
+
     elements.btnNextPage.addEventListener('click', () => {
         const totalPages = Math.ceil(state.totalReports / state.limit);
         if (state.currentPage < totalPages) {
@@ -683,12 +629,10 @@ function bindEvents() {
             fetchReports();
         }
     });
-    
-    // Drawer
+
     elements.drawerClose.addEventListener('click', closeDrawer);
     elements.drawerOverlay.addEventListener('click', closeDrawer);
-    
-    // Live polling (toutes les 30 secondes)
+
     state.pollingInterval = setInterval(() => {
         if (!state.drawerReportId) {
             fetchReports();
@@ -696,27 +640,21 @@ function bindEvents() {
     }, 30000);
 }
 
-// ============================================================
-// INITIALISATION
-// ============================================================
 async function init() {
     const isAuthenticated = await checkSession();
     if (!isAuthenticated) {
-        window.location.href = '/login.html';
+        window.location.href = '/login/';
         return;
     }
-    
+
     bindEvents();
     await fetchReports();
-    
-    // Afficher l'indicateur "En direct"
+
     elements.liveIndicator.style.display = 'flex';
 }
 
-// Nettoyage au déchargement
 window.addEventListener('beforeunload', () => {
     if (state.pollingInterval) clearInterval(state.pollingInterval);
 });
 
-// Démarrer
 init();

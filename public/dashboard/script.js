@@ -1,12 +1,10 @@
 import { getSession, logout } from '../global/auth.js';
 import { apiFetch, getCsrfToken } from '../global/utils.js';
 
-// ─── State ───────────────────────────────────────────────────
 let currentUser = null;
 let currentReportId = null;
 let myReports = [];
 
-// ─── DOM refs ────────────────────────────────────────────────
 const sidebarNav   = document.getElementById('sidebarNav');
 const reportsList  = document.getElementById('reportsList');
 const mainContent  = document.getElementById('mainContent');
@@ -17,7 +15,6 @@ const userName     = document.getElementById('userName');
 const userRole     = document.getElementById('userRole');
 const welcomeNewBtn = document.getElementById('welcomeNewBtn');
 
-// ─── Init ─────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
@@ -36,7 +33,6 @@ async function init() {
     btnLogout.addEventListener('click', handleLogout);
 }
 
-// ─── User badge ───────────────────────────────────────────────
 function renderUserBadge() {
     const name = currentUser.name || currentUser.email || 'Utilisateur';
     userAvatar.textContent = name.charAt(0).toUpperCase();
@@ -44,24 +40,23 @@ function renderUserBadge() {
     userRole.textContent = currentUser.role || '';
 }
 
-// ─── Sidebar nav ─────────────────────────────────────────────
 function renderSidebarNav() {
     const links = [];
     if (['hr', 'legal', 'admin'].includes(currentUser.role)) {
-        links.push({ page: 'manage', icon: '📋', label: 'Gestion des signalements' });
+        links.push({ page: 'manage', label: 'Gestion des signalements' });
     }
     if (['legal', 'admin'].includes(currentUser.role)) {
-        links.push({ page: 'audit', icon: '🔍', label: "Journal d'audit" });
+        links.push({ page: 'audit', label: "Journal d'audit" });
     }
     if (currentUser.role === 'admin') {
-        links.push({ page: 'users',  icon: '👥', label: 'Utilisateurs' });
-        links.push({ page: 'system', icon: '⚙️', label: 'Logs système' });
+        links.push({ page: 'users',  label: 'Utilisateurs' });
+        links.push({ page: 'system', label: 'Logs système' });
     }
 
     if (!links.length) { sidebarNav.style.display = 'none'; return; }
 
     sidebarNav.innerHTML = links.map(l =>
-        `<a class="nav-link" data-page="${l.page}">${l.icon} ${l.label}</a>`
+        `<a class="nav-link" data-page="${l.page}">${l.label}</a>`
     ).join('');
 
     sidebarNav.querySelectorAll('.nav-link').forEach(link => {
@@ -72,7 +67,6 @@ function renderSidebarNav() {
     });
 }
 
-// ─── Load reports ─────────────────────────────────────────────
 async function loadMyReports() {
     try {
         const data = await apiFetch('/api/reports');
@@ -106,7 +100,6 @@ function renderReportsList() {
     });
 }
 
-// ─── New report form ──────────────────────────────────────────
 function showNewReportForm() {
     mainContent.innerHTML = `
         <div class="form-wrapper">
@@ -126,14 +119,14 @@ function showNewReportForm() {
                         <option value="Atteinte à l'éthique">Atteinte à l'éthique</option>
                         <option value="Autre">Autre</option>
                     </select>
-                    <div class="field-error hidden" id="err-category">⚠ Veuillez sélectionner une catégorie.</div>
+                    <div class="field-error hidden" id="err-category">Veuillez sélectionner une catégorie.</div>
                 </div>
 
                 <div class="form-group">
                     <label for="description">Description <span class="required">*</span></label>
                     <textarea id="description" name="description" placeholder="Décrivez les faits de manière précise et factuelle..." maxlength="5000"></textarea>
                     <div class="char-hint" id="descCount">0 / 5000</div>
-                    <div class="field-error hidden" id="err-description">⚠ La description est requise (minimum 20 caractères).</div>
+                    <div class="field-error hidden" id="err-description">La description est requise (minimum 20 caractères).</div>
                 </div>
 
                 <div class="form-group">
@@ -153,7 +146,6 @@ function showNewReportForm() {
                     <div class="file-drop" id="fileDrop">
                         <input type="file" id="attachments" name="attachments" multiple
                             accept=".pdf,.jpg,.jpeg,.png,.gif,.mp3,.wav,.txt">
-                        <div class="file-drop-icon">📎</div>
                         <p>Glissez-déposez vos fichiers ici</p>
                         <small>PDF, images, audio, texte acceptés</small>
                     </div>
@@ -172,7 +164,6 @@ function showNewReportForm() {
         </div>
     `;
 
-    // Char counter
     const desc  = document.getElementById('description');
     const count = document.getElementById('descCount');
     desc.addEventListener('input', () => {
@@ -181,33 +172,28 @@ function showNewReportForm() {
         count.className = `char-hint${len > 4500 ? ' warn' : ''}`;
     });
 
-    // File display
     const fileInput = document.getElementById('attachments');
     const fileList  = document.getElementById('fileList');
     fileInput.addEventListener('change', () => {
         fileList.innerHTML = Array.from(fileInput.files).map(f =>
-            `<div class="file-chip">📄 ${escapeHtml(f.name)}</div>`
+            `<div class="file-chip">${escapeHtml(f.name)}</div>`
         ).join('');
     });
 
-    // Drag over styling
     const drop = document.getElementById('fileDrop');
     drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('dragover'); });
     drop.addEventListener('dragleave', () => drop.classList.remove('dragover'));
     drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('dragover'); });
 
-    // Cancel
     document.getElementById('cancelNewReport').addEventListener('click', () => {
         confirm_('Annuler le signalement', 'Vos informations non sauvegardées seront perdues. Continuer ?', () => {
             showWelcome();
         });
     });
 
-    // Submit
     document.getElementById('submitNewReport').addEventListener('click', submitNewReport);
 }
 
-// ─── Validation ───────────────────────────────────────────────
 function validateNewReportForm() {
     let valid = true;
 
@@ -279,11 +265,9 @@ async function submitNewReport() {
     }
 }
 
-// ─── Report detail ────────────────────────────────────────────
 async function showReportDetail(reportId) {
     currentReportId = parseInt(reportId);
 
-    // Highlight sidebar
     reportsList.querySelectorAll('.report-item').forEach(item => {
         item.classList.toggle('selected', parseInt(item.dataset.reportId) === currentReportId);
     });
@@ -300,7 +284,6 @@ async function showReportDetail(reportId) {
 }
 
 function renderReportDetail(report) {
-    // Attachments
     let attachHtml = '';
     if (report.attachments?.length) {
         attachHtml = `
@@ -316,14 +299,13 @@ function renderReportDetail(report) {
                             </span>`;
                         }
                         return `<a class="attachment-chip" href="/api/attachments/${a.id}" download="${escapeHtml(a.filename)}">
-                            📎 ${escapeHtml(a.filename)}
+                            ${escapeHtml(a.filename)}
                         </a>`;
                     }).join('')}
                 </div>
             </div>`;
     }
 
-    // Messages
     const messagesHtml = report.messages?.length
         ? report.messages.map(m => {
             const isMe = m.sender_role === 'employee';
@@ -338,7 +320,6 @@ function renderReportDetail(report) {
         }).join('')
         : '<div class="empty-state">Aucun message pour l\'instant.</div>';
 
-    // Status update (HR/admin only)
     const canUpdate = ['hr', 'legal', 'admin'].includes(currentUser.role)
         && !['closed_founded', 'closed_unfounded'].includes(report.status);
 
@@ -364,9 +345,9 @@ function renderReportDetail(report) {
                     <h2>${escapeHtml(report.category)}</h2>
                     <div class="meta-row">
                         <span class="status-badge status-${report.status}">${formatStatus(report.status)}</span>
-                        <span class="meta-item"><span class="meta-icon">📅</span>${new Date(report.created_at).toLocaleDateString('fr-FR')}</span>
-                        <span class="meta-item"><span class="meta-icon">👤</span>${report.is_anonymous ? 'Anonyme' : 'Identifié'}</span>
-                        ${report.closed_at ? `<span class="meta-item"><span class="meta-icon">✅</span>Clôturé le ${new Date(report.closed_at).toLocaleDateString('fr-FR')}</span>` : ''}
+                        <span class="meta-item">${new Date(report.created_at).toLocaleDateString('fr-FR')}</span>
+                        <span class="meta-item">${report.is_anonymous ? 'Anonyme' : 'Identifié'}</span>
+                        ${report.closed_at ? `<span class="meta-item">Clôturé le ${new Date(report.closed_at).toLocaleDateString('fr-FR')}</span>` : ''}
                     </div>
                 </div>
             </div>
@@ -418,18 +399,15 @@ function renderReportDetail(report) {
         </div>
     `;
 
-    // Scroll thread to bottom
     const thread = document.getElementById('threadMessages');
     if (thread) thread.scrollTop = thread.scrollHeight;
 
-    // Events
     document.getElementById('btnSendMessage').addEventListener('click', () => sendMessage(report.id));
     if (canUpdate) {
         document.getElementById('btnUpdateStatus').addEventListener('click', () => updateStatus(report.id));
     }
 }
 
-// ─── Update status ────────────────────────────────────────────
 async function updateStatus(reportId) {
     const newStatus   = document.getElementById('newStatus').value;
     const closeReason = document.getElementById('closeReason').value.trim();
@@ -463,7 +441,6 @@ async function updateStatus(reportId) {
     });
 }
 
-// ─── Send message ─────────────────────────────────────────────
 async function sendMessage(reportId) {
     const textarea = document.getElementById('newMessageContent');
     const content  = textarea.value.trim();
@@ -496,7 +473,6 @@ async function sendMessage(reportId) {
     }
 }
 
-// ─── Logout ───────────────────────────────────────────────────
 function handleLogout() {
     confirm_('Déconnexion', 'Êtes-vous sûr de vouloir vous déconnecter ?', async () => {
         await logout();
@@ -504,7 +480,6 @@ function handleLogout() {
     });
 }
 
-// ─── Navigation ───────────────────────────────────────────────
 function navigateTo(page) {
     const paths = {
         manage: '/management/',
@@ -522,7 +497,6 @@ function showWelcome() {
         <div class="welcome-screen">
             <div class="welcome-glow"></div>
             <div class="welcome-inner">
-                <div class="welcome-emoji">⚖️</div>
                 <h1>Bienvenue</h1>
                 <p>Sélectionnez un signalement dans la barre latérale<br>ou créez-en un nouveau pour commencer.</p>
                 <button class="welcome-cta" id="welcomeNewBtn2">+ Nouveau signalement</button>
@@ -531,16 +505,13 @@ function showWelcome() {
     document.getElementById('welcomeNewBtn2')?.addEventListener('click', showNewReportForm);
 }
 
-// ─── Toast system ─────────────────────────────────────────────
 function showToast(message, type = 'info') {
-    const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
     const container = document.getElementById('toastContainer');
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
     toast.innerHTML = `
-        <span class="toast-icon">${icons[type] || icons.info}</span>
         <span class="toast-msg">${escapeHtml(message)}</span>
-        <button class="toast-close">✕</button>
+        <button class="toast-close">×</button>
     `;
     container.appendChild(toast);
 
@@ -552,7 +523,6 @@ function showToast(message, type = 'info') {
     setTimeout(remove, 4000);
 }
 
-// ─── Confirm modal ────────────────────────────────────────────
 function confirm_(title, message, onConfirm) {
     const overlay = document.getElementById('confirmModal');
     document.getElementById('confirmTitle').textContent   = title;
@@ -569,7 +539,6 @@ function confirm_(title, message, onConfirm) {
     cancel.addEventListener('click', () => { close(); ok.removeEventListener('click', handleOk); });
 }
 
-// ─── Helpers ──────────────────────────────────────────────────
 function escapeHtml(unsafe) {
     if (unsafe == null) return '';
     return String(unsafe).replace(/[&<>"']/g, m => ({

@@ -42,7 +42,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     }
 
     try {
-        const res = await fetch('https://82.67.198.193/api/login', {
+        const res = await fetch('/api/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
@@ -62,7 +62,6 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
             }
         }
     } catch (error) {
-        console.error('Erreur réseau / serveur (login) :', error);
         animateFields(form, ['email', 'password'], 'error');
         setTimeout(() => alert(error), 500);
     }
@@ -117,7 +116,6 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
             }
         }
     } catch (error) {
-        console.error('Erreur réseau / serveur (register) :', error);
         animateFields(form, ['name', 'email', 'password', 'confirm'], 'error');
         setTimeout(() => alert('Impossible de contacter le serveur.'), 500);
     }
