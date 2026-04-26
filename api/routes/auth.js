@@ -61,7 +61,6 @@ router.post('/login', async (req, res) => {
             [email.toLowerCase().trim()]
         );
 
-        // Timing-safe : on simule un hash même si l'utilisateur n'existe pas
         if (rows.length === 0) {
             await bcrypt.compare('__fake__', '$2b$12$' + 'B'.repeat(53));
             return res.status(400).json({ error: true, fields: ['email', 'password'] });
@@ -69,7 +68,6 @@ router.post('/login', async (req, res) => {
 
         const user = rows[0];
 
-        // Réinitialisation automatique du verrouillage si délai expiré
         if (user.locked_until && new Date(user.locked_until) < new Date()) {
             await db.query(
                 'UPDATE users SET failed_attempts = 0, locked_until = NULL WHERE id = ?',
@@ -79,7 +77,6 @@ router.post('/login', async (req, res) => {
             user.locked_until    = null;
         }
 
-        // Compte encore verrouillé
         if (user.locked_until && new Date(user.locked_until) > new Date()) {
             return res.status(400).json({ error: true, fields: ['email', 'password'] });
         }
@@ -103,7 +100,6 @@ router.post('/login', async (req, res) => {
             return res.status(400).json({ error: true, fields: ['email', 'password'] });
         }
 
-        // Succès
         await db.query(
             'UPDATE users SET failed_attempts = 0, locked_until = NULL WHERE id = ?',
             [user.id]

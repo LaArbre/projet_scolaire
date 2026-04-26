@@ -40,7 +40,6 @@ router.get('/:id', auth, async (req, res) => {
             return res.status(404).json({ error: 'Fichier introuvable sur le disque' });
         }
 
-        // Sanitisation du nom dans Content-Disposition pour éviter l'injection de headers
         const safeFilename = sanitizeFilename(attachment.filename);
         res.download(attachment.filepath, safeFilename);
     } catch (err) {

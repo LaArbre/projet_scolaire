@@ -202,30 +202,23 @@ async function fetchReports() {
         params.append('limit', state.limit);
         params.append('offset', (state.currentPage - 1) * state.limit);
         
-        // Filtres
         if (state.filters.category) params.append('category', state.filters.category);
         if (state.filters.dateFrom) params.append('created_after', state.filters.dateFrom);
         if (state.filters.dateTo) params.append('created_before', state.filters.dateTo);
         if (state.filters.isAnonymous !== '') params.append('is_anonymous', state.filters.isAnonymous);
-        if (state.filters.search) params.append('search', state.filters.search); // L'API ne supporte pas search, on filtrera côté client
+        if (state.filters.search) params.append('search', state.filters.search);
         
-        // Statut (closed filter)
         if (state.filters.closed === 'open') {
-            // L'API ne supporte pas directement "status not like closed%", on va filtrer côté client
         } else if (state.filters.closed === 'closed') {
-            // On pourrait ajouter un paramètre fictif mais l'API ne le gère pas. On filtrera côté client.
         }
         
-        // Tri
         const [sortField, sortOrder] = state.sort.split('-');
-        // L'API ne supporte pas le tri via query string, on triera côté client
 
         const data = await apiCall(`/api/reports?${params.toString()}`);
         
         let reports = data.reports || [];
         state.totalReports = data.total || 0;
         
-        // Appliquer les filtres supplémentaires côté client (search, closed, tri)
         reports = filterReportsClientSide(reports);
         reports = sortReportsClientSide(reports);
         
@@ -233,7 +226,6 @@ async function fetchReports() {
         renderTable();
         updatePagination();
         
-        // Mettre à jour les stats (on peut le faire avec un appel séparé pour plus de précision)
         await fetchStats();
         
     } catch (error) {
@@ -284,7 +276,6 @@ async function fetchStats() {
     if (!state.user) return;
     try {
         let statsUrl = '/api/reports?limit=1000';
-        // Si employé, l'API ne retourne que ses signalements, donc les stats sont correctes pour lui
         const data = await apiCall(statsUrl);
         const reports = data.reports || [];
         
@@ -399,9 +390,7 @@ async function openDrawer(reportId) {
     elements.drawerContent.innerHTML = '<div class="drawer-loading">Chargement...</div>';
     
     try {
-        // Récupérer les détails du signalement
         const report = await apiCall(`/api/reports/${reportId}`);
-        // Récupérer les messages
         const messagesData = await apiCall(`/api/reports/${reportId}/messages?limit=50`);
         state.drawerMessages = messagesData.messages || [];
         

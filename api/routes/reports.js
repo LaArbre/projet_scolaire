@@ -47,7 +47,6 @@ router.post('/', auth, upload.array('attachments', 5), async (req, res) => {
 
         if (req.files?.length > 0) {
             for (const file of req.files) {
-                // Sanitisation du nom original avant stockage
                 const safeName = sanitizeFilename(file.originalname);
                 await db.query(
                     `INSERT INTO attachments
