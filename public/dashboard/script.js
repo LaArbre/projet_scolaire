@@ -70,7 +70,7 @@ function renderSidebarNav() {
 async function loadMyReports() {
     try {
         const data = await apiFetch('/api/reports');
-        myReports = data;
+        myReports = data.reports || [];
         renderReportsList();
     } catch (err) {
         console.error('Erreur chargement reports', err);
@@ -233,6 +233,7 @@ async function submitNewReport() {
     btn.innerHTML = '<div class="spinner"></div><span>Envoi en cours...</span>';
 
     const formData = new FormData();
+    formData.append('title',         document.getElementById('category').value);
     formData.append('category',     document.getElementById('category').value);
     formData.append('description',  document.getElementById('description').value);
     formData.append('is_anonymous', document.getElementById('isAnonymous').checked);
