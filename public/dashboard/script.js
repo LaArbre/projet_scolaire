@@ -34,7 +34,7 @@ async function init() {
 }
 
 function renderUserBadge() {
-    const name = currentUser.name || currentUser.email || 'Utilisateur';
+    const name = currentUser.fullname || currentUser.email || 'Utilisateur';
     userAvatar.textContent = name.charAt(0).toUpperCase();
     userName.textContent = name;
     userRole.textContent = currentUser.role || '';
@@ -145,9 +145,9 @@ function showNewReportForm() {
                     <label>Pièces jointes <span style="color:var(--text-muted);font-weight:400">(max 5 fichiers, 10 Mo)</span></label>
                     <div class="file-drop" id="fileDrop">
                         <input type="file" id="attachments" name="attachments" multiple
-                            accept=".pdf,.jpg,.jpeg,.png,.gif,.mp3,.wav,.txt">
+                            accept=".pdf,.jpg,.jpeg,.png,.gif,.txt">
                         <p>Glissez-déposez vos fichiers ici</p>
-                        <small>PDF, images, audio, texte acceptés</small>
+                        <small>PDF, images, texte acceptés</small>
                     </div>
                     <div class="file-list" id="fileList"></div>
                 </div>

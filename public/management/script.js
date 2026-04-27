@@ -349,7 +349,7 @@ async function openDrawer(reportId) {
     try {
         const report = await apiCall(`/api/reports/${reportId}`);
         const messagesData = await apiCall(`/api/reports/${reportId}/messages?limit=50`);
-        state.drawerMessages = messagesData.messages || [];
+        state.drawerMessages = (messagesData.messages || []).slice().reverse();
 
         renderDrawerContent(report, state.drawerMessages);
     } catch (error) {
@@ -521,7 +521,7 @@ async function sendMessage(reportId) {
         });
         showToast('Message envoyé', 'success');
         const messagesData = await apiCall(`/api/reports/${reportId}/messages?limit=50`);
-        state.drawerMessages = messagesData.messages || [];
+        state.drawerMessages = (messagesData.messages || []).slice().reverse();
         const container = document.getElementById('dwMessagesContainer');
         if (container) {
             let html = '';

@@ -29,7 +29,7 @@ function getSessionConfig(store) {
         name:              'sid',
         cookie: {
             httpOnly: true,
-            secure:   true,
+            secure:   process.env.NODE_ENV === 'production',
             sameSite: 'strict',
             maxAge:   SESSION_TTL_MS,
         },

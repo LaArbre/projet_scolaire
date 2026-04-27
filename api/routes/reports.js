@@ -6,7 +6,7 @@ const checkRole      = require('../middlewares/checkRole');
 const { logAction }  = require('../utils/auditLogger');
 const { upload, sanitizeFilename } = require('../utils/fileHandler');
 const {
-    isValidCategory, isValidStatus, isPositiveInt,
+    isValidCategory, isValidStatus, isPositiveInt, isValidDateOrNull, escapeLike,
 } = require('../utils/validate');
 
 const router = express.Router();
@@ -67,24 +67,52 @@ router.get('/', auth, async (req, res) => {
         const limit  = Math.min(parseInt(req.query.limit)  || 50, 100);
         const offset = Math.max(parseInt(req.query.offset) || 0,  0);
 
-        let query, countQuery, params, countParams;
+        const filters = [];
+        const filterParams = [];
 
         if (req.session.user.role === 'employee') {
-            countQuery  = 'SELECT COUNT(*) AS total FROM reports WHERE user_id = ?';
-            countParams = [req.session.user.id];
-            query       = `SELECT id, tracking_code, title, category, status, is_anonymous, created_at, updated_at
-                           FROM reports WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`;
-            params      = [req.session.user.id, limit, offset];
-        } else {
-            countQuery  = 'SELECT COUNT(*) AS total FROM reports';
-            countParams = [];
-            query       = `SELECT id, tracking_code, title, category, status, is_anonymous, created_at, updated_at
-                           FROM reports ORDER BY created_at DESC LIMIT ? OFFSET ?`;
-            params      = [limit, offset];
+            filters.push('user_id = ?');
+            filterParams.push(req.session.user.id);
         }
 
-        const [[{ total }]] = await db.query(countQuery, countParams);
-        const [reports]     = await db.query(query, params);
+        if (req.query.category && isValidCategory(req.query.category)) {
+            filters.push('category = ?');
+            filterParams.push(req.query.category);
+        }
+
+        if (req.query.status && isValidStatus(req.query.status)) {
+            filters.push('status = ?');
+            filterParams.push(req.query.status);
+        }
+
+        if (req.query.created_after && isValidDateOrNull(req.query.created_after)) {
+            filters.push('created_at >= ?');
+            filterParams.push(req.query.created_after);
+        }
+
+        if (req.query.created_before && isValidDateOrNull(req.query.created_before)) {
+            filters.push('created_at <= ?');
+            filterParams.push(req.query.created_before);
+        }
+
+        if (req.query.is_anonymous === '1' || req.query.is_anonymous === '0') {
+            filters.push('is_anonymous = ?');
+            filterParams.push(req.query.is_anonymous === '1');
+        }
+
+        if (req.query.search && typeof req.query.search === 'string') {
+            const term = `%${escapeLike(req.query.search.substring(0, 100))}%`;
+            filters.push('(tracking_code LIKE ? OR category LIKE ? OR title LIKE ?)');
+            filterParams.push(term, term, term);
+        }
+
+        const whereClause = filters.length ? 'WHERE ' + filters.join(' AND ') : '';
+        const countQuery  = `SELECT COUNT(*) AS total FROM reports ${whereClause}`;
+        const query       = `SELECT id, tracking_code, title, category, status, is_anonymous, created_at, updated_at
+                             FROM reports ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+
+        const [[{ total }]] = await db.query(countQuery, filterParams);
+        const [reports]     = await db.query(query, [...filterParams, limit, offset]);
 
         res.json({ reports, total, limit, offset });
     } catch (err) {

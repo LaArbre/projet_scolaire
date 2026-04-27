@@ -72,7 +72,7 @@ async function resetDatabase() {
             id INT AUTO_INCREMENT PRIMARY KEY,
             report_id INT NOT NULL,
             sender_id INT NULL,
-            sender_role ENUM('employee','hr','legal','system') NOT NULL,
+            sender_role ENUM('employee','hr','legal','admin','system') NOT NULL,
             content TEXT NOT NULL,
             is_anonymous BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
