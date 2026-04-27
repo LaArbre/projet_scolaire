@@ -37,7 +37,7 @@ router.post('/', auth, upload.array('attachments', 5), async (req, res) => {
             `INSERT INTO reports
              (tracking_code, title, user_id, category, description, status, is_anonymous)
              VALUES (?, ?, ?, ?, ?, 'open', ?)`,
-            [trackingCode, title.trim(), req.session.user.id, category, description.trim(), !!is_anonymous]
+            [trackingCode, title.trim(), req.session.user.id, category, description.trim(), is_anonymous === 'true' || is_anonymous === true]
         );
         const reportId = result.insertId;
 
@@ -121,8 +121,14 @@ router.get('/:id', auth, async (req, res) => {
             [reportId]
         );
 
+        const [messages] = await db.query(
+            `SELECT id, sender_id, sender_role, content, is_anonymous, created_at
+             FROM messages WHERE report_id = ? ORDER BY id ASC`,
+            [reportId]
+        );
+
         await logAction(req, 'VIEW_REPORT', 'report', reportId);
-        res.json({ ...report, attachments });
+        res.json({ ...report, attachments, messages });
     } catch (err) {
         console.error('Erreur détail signalement:', err);
         res.status(500).json({ error: 'Erreur serveur' });
