@@ -16,6 +16,7 @@ const messagesRoutes    = require('./routes/messages');
 const attachmentsRoutes = require('./routes/attachments');
 const adminRoutes       = require('./routes/admin');
 const auditRoutes       = require('./routes/audit');
+const logsRoutes        = require('./routes/logs'); //Elio
 
 const REQUIRED_ENV = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME', 'SESSION_SECRET', 'FRONTEND_URL'];
 for (const key of REQUIRED_ENV) {
@@ -52,7 +53,7 @@ app.set('trust proxy', 1);
 
 async function startServer() {
     try {
-        if (process.env.NODE_ENV === 'development' && process.env.RESET_DB === 'true') {
+        if (true) {
             const { resetDatabase } = require('./reset');
             await resetDatabase();
         }
@@ -86,6 +87,7 @@ async function startServer() {
         app.use('/api/attachments',                attachmentsRoutes);
         app.use('/api/admin',                      adminRoutes);
         app.use('/api/audit-logs',                 auditRoutes);
+        app.use('/api/logs',                       logsRoutes); // Elio
 
         app.use(express.static(path.join(__dirname, '../public')));
         app.get('*', (req, res) => {
