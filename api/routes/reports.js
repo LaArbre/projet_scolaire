@@ -157,7 +157,7 @@ router.get('/:id', auth, async (req, res) => {
         );
 
         await logAction(req, 'VIEW_REPORT', 'report', reportId);
-        await insertLog(req.session.user.id, 'Consultation signalement', `${req.session.user.fullname} — #${reportId}`);  // Elio
+        await insertLog(req.session.user.id, 'Consultation signalement', report.tracking_code);  // Elio
         res.json({ ...report, attachments, messages });
     } catch (err) {
         console.error('Erreur détail signalement:', err);

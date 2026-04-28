@@ -96,7 +96,7 @@ router.post('/login', async (req, res) => {
                 );
             }
             await logAction(req, 'LOGIN_FAILED', 'user', user.id);
-            await insertLog(user.id, 'Échec de connexion', user.fullname || user.email);  // Elio
+            await insertLog(user.id, 'Échec de connexion', req.ip);  // Elio
             return res.status(400).json({ error: true, fields: ['email', 'password'] });
         }
 
@@ -114,7 +114,7 @@ router.post('/login', async (req, res) => {
                 role:     user.role,
             };
             await logAction(req, 'LOGIN', 'user', user.id);
-            await insertLog(user.id, 'Connexion réussie', user.fullname || user.email);  // Elio
+            await insertLog(user.id, 'Connexion réussie', req.ip);  // Elio
             res.json({ success: true, user: req.session.user });
         });
     } catch (err) {
@@ -128,7 +128,7 @@ router.post('/logout', (req, res) => {  // Elio modification pour insterLog
     req.session.destroy(async (err) => {
         if (err) return res.status(500).json({ error: true });
         if (user) {
-            await insertLog(user.id, 'Déconnexion', user.fullname || user.email);
+            await insertLog(user.id, 'Déconnexion', req.ip);
         }
         res.clearCookie('sid');
         res.json({ success: true });

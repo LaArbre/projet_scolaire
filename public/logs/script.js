@@ -1,13 +1,8 @@
 const state = {
     user: null,
     csrfToken: null,
-    logs: [],
-    totalLogs: 0,
-    currentPage: 1,
-    limit: 50,
-    filterEvent: '',
-    stats: { login: 0, fail: 0, consult: 0, logout: 0, total: 0 },
-    pollingInterval: null
+    allLogs: [],
+    filters: { user: '', event: '', dateFrom: '', dateTo: '' }
 };
 
 const elements = {
@@ -19,38 +14,31 @@ const elements = {
     cntFail:         document.getElementById('cntFail'),
     cntConsult:      document.getElementById('cntConsult'),
     cntLogout:       document.getElementById('cntLogout'),
-    cntTotal:        document.getElementById('cntTotal'),
+    cntVisible:      document.getElementById('cntVisible'),
+    filterUser:      document.getElementById('filterUser'),
     filterEvent:     document.getElementById('filterEvent'),
+    filterDateFrom:  document.getElementById('filterDateFrom'),
+    filterDateTo:    document.getElementById('filterDateTo'),
     btnResetFilters: document.getElementById('btnResetFilters'),
     tableBody:       document.getElementById('tableBody'),
     tableCount:      document.getElementById('tableCount'),
-    pageNum:         document.getElementById('pageNum'),
-    pageTotal:       document.getElementById('pageTotal'),
-    btnPrevPage:     document.getElementById('btnPrevPage'),
-    btnNextPage:     document.getElementById('btnNextPage'),
     toastContainer:  document.getElementById('toastContainer')
 };
 
 function showToast(message, type = 'info', duration = 4000) {
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
-    toast.innerHTML = `
-        <span class="toast-msg">${escapeHtml(message)}</span>
-        <button class="toast-close" aria-label="Fermer">×</button>
-    `;
+    toast.innerHTML = `<span class="toast-msg">${escapeHtml(message)}</span><button class="toast-close">×</button>`;
     elements.toastContainer.appendChild(toast);
-    const removeToast = () => {
-        toast.classList.add('toast-out');
-        setTimeout(() => toast.remove(), 200);
-    };
-    toast.querySelector('.toast-close').addEventListener('click', removeToast);
-    setTimeout(removeToast, duration);
+    const remove = () => { toast.classList.add('toast-out'); setTimeout(() => toast.remove(), 200); };
+    toast.querySelector('.toast-close').addEventListener('click', remove);
+    setTimeout(remove, duration);
 }
 
 function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = String(text ?? '');
-    return div.innerHTML;
+    const d = document.createElement('div');
+    d.textContent = String(text ?? '');
+    return d.innerHTML;
 }
 
 function formatDate(dateString) {
@@ -60,17 +48,18 @@ function formatDate(dateString) {
     });
 }
 
+function debounce(fn, delay) {
+    let t;
+    return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), delay); };
+}
+
 async function apiCall(url, options = {}) {
     const headers = { 'Content-Type': 'application/json', ...options.headers };
-    if (state.csrfToken && !['GET', 'HEAD', 'OPTIONS'].includes(options.method || 'GET')) {
+    if (state.csrfToken && !['GET', 'HEAD', 'OPTIONS'].includes(options.method || 'GET'))
         headers['X-CSRF-Token'] = state.csrfToken;
-    }
-    const response = await fetch(url, { credentials: 'include', ...options, headers });
-    if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.error || `Erreur ${response.status}`);
-    }
-    return response.json();
+    const res = await fetch(url, { credentials: 'include', ...options, headers });
+    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `Erreur ${res.status}`); }
+    return res.json();
 }
 
 async function checkSession() {
@@ -80,148 +69,132 @@ async function checkSession() {
             state.user = data.user;
             elements.topbarName.textContent = state.user.fullname || state.user.email;
             elements.topbarAvatar.textContent = (state.user.fullname || state.user.email).charAt(0).toUpperCase();
-            const csrfData = await apiCall('/api/csrf-token');
-            state.csrfToken = csrfData.csrfToken;
+            const csrf = await apiCall('/api/csrf-token');
+            state.csrfToken = csrf.csrfToken;
             return true;
         }
         return false;
-    } catch {
-        return false;
-    }
+    } catch { return false; }
 }
 
 async function logout() {
-    try {
-        await apiCall('/api/logout', { method: 'POST' });
-        window.location.href = '/login/';
-    } catch {
-        showToast('Erreur lors de la déconnexion', 'error');
-    }
+    try { await apiCall('/api/logout', { method: 'POST' }); window.location.href = '/login/'; }
+    catch { showToast('Erreur lors de la déconnexion', 'error'); }
 }
 
 const EVENT_BADGE = {
-    'Connexion réussie':       'badge-success',
-    'Échec de connexion':      'badge-danger',
-    'Consultation signalement':'badge-info',
-    'Déconnexion':             'badge-muted'
+    'Connexion réussie':        'badge-success',
+    'Échec de connexion':       'badge-danger',
+    'Consultation signalement': 'badge-info',
+    'Déconnexion':              'badge-muted'
 };
 
+function applyFilters() {
+    const { user, event, dateFrom, dateTo } = state.filters;
+    const searchLower = user.toLowerCase();
+    const from = dateFrom ? new Date(dateFrom) : null;
+    const to   = dateTo   ? new Date(dateTo + 'T23:59:59') : null;
+
+    return state.allLogs.filter(log => {
+        if (searchLower) {
+            const nameMatch  = log.fullname?.toLowerCase().includes(searchLower);
+            const emailMatch = log.email?.toLowerCase().includes(searchLower);
+            if (!nameMatch && !emailMatch) return false;
+        }
+        if (event && log.name !== event) return false;
+        const d = new Date(log.date);
+        if (from && d < from) return false;
+        if (to   && d > to)   return false;
+        return true;
+    });
+}
+
+function updateStats() {
+    const counts = { login: 0, fail: 0, consult: 0, logout: 0 };
+    state.allLogs.forEach(l => {
+        if (l.name === 'Connexion réussie')        counts.login++;
+        else if (l.name === 'Échec de connexion')  counts.fail++;
+        else if (l.name === 'Consultation signalement') counts.consult++;
+        else if (l.name === 'Déconnexion')         counts.logout++;
+    });
+    elements.cntLogin.textContent   = counts.login;
+    elements.cntFail.textContent    = counts.fail;
+    elements.cntConsult.textContent = counts.consult;
+    elements.cntLogout.textContent  = counts.logout;
+}
+
 function renderTable() {
-    const tbody = elements.tableBody;
-    if (state.logs.length === 0) {
-        tbody.innerHTML = `<tr class="empty-row"><td colspan="5">Aucun log trouvé</td></tr>`;
-        elements.tableCount.textContent = '0 résultat';
+    const visible = applyFilters();
+    elements.cntVisible.textContent = visible.length;
+    elements.tableCount.textContent = `${visible.length} résultat${visible.length !== 1 ? 's' : ''} (${state.allLogs.length} au total)`;
+
+    if (visible.length === 0) {
+        elements.tableBody.innerHTML = `<tr class="empty-row"><td colspan="5">Aucun log trouvé</td></tr>`;
         return;
     }
 
-    let html = '';
-    state.logs.forEach(log => {
-        const badgeClass = EVENT_BADGE[log.name] || 'badge-muted';
-        html += `
-            <tr class="row-enter">
-                <td class="date-cell">${escapeHtml(formatDate(log.date))}</td>
-                <td><span class="event-badge ${badgeClass}">${escapeHtml(log.name)}</span></td>
-                <td class="info-cell">${escapeHtml(log.info)}</td>
-                <td class="user-cell">${escapeHtml(log.fullname)}</td>
-                <td class="email-cell">${escapeHtml(log.email)}</td>
-            </tr>
-        `;
-    });
-
-    tbody.innerHTML = html;
-    elements.tableCount.textContent = `${state.totalLogs} résultat${state.totalLogs > 1 ? 's' : ''}`;
-}
-
-function updatePagination() {
-    const totalPages = Math.ceil(state.totalLogs / state.limit) || 1;
-    elements.pageNum.textContent = state.currentPage;
-    elements.pageTotal.textContent = totalPages;
-    elements.btnPrevPage.disabled = state.currentPage <= 1;
-    elements.btnNextPage.disabled = state.currentPage >= totalPages;
+    elements.tableBody.innerHTML = visible.map(log => `
+        <tr class="row-enter">
+            <td class="date-cell">${escapeHtml(formatDate(log.date))}</td>
+            <td><span class="event-badge ${EVENT_BADGE[log.name] || 'badge-muted'}">${escapeHtml(log.name)}</span></td>
+            <td class="user-cell">${escapeHtml(log.fullname)}</td>
+            <td class="email-cell">${escapeHtml(log.email)}</td>
+            <td class="info-cell">${escapeHtml(log.info)}</td>
+        </tr>
+    `).join('');
 }
 
 async function fetchLogs() {
     try {
-        const params = new URLSearchParams();
-        params.append('limit', state.limit);
-        params.append('offset', (state.currentPage - 1) * state.limit);
-        if (state.filterEvent) params.append('name', state.filterEvent);
-
-        const data = await apiCall(`/api/logs?${params.toString()}`);
-        state.logs = data.logs || [];
-        state.totalLogs = data.total || 0;
+        const data = await apiCall('/api/logs?limit=1000');
+        state.allLogs = data.logs || [];
+        updateStats();
         renderTable();
-        updatePagination();
+        elements.liveIndicator.style.display = 'flex';
     } catch (err) {
         showToast('Erreur lors du chargement des logs', 'error');
-        state.logs = [];
-        renderTable();
-        updatePagination();
-    }
-}
-
-async function fetchStats() {
-    try {
-        const data = await apiCall('/api/logs?limit=200');
-        const all = data.logs || [];
-        state.stats = { login: 0, fail: 0, consult: 0, logout: 0, total: data.total || 0 };
-        all.forEach(l => {
-            if (l.name === 'Connexion réussie')        state.stats.login++;
-            else if (l.name === 'Échec de connexion')  state.stats.fail++;
-            else if (l.name === 'Consultation signalement') state.stats.consult++;
-            else if (l.name === 'Déconnexion')         state.stats.logout++;
-        });
-        elements.cntLogin.textContent   = state.stats.login;
-        elements.cntFail.textContent    = state.stats.fail;
-        elements.cntConsult.textContent = state.stats.consult;
-        elements.cntLogout.textContent  = state.stats.logout;
-        elements.cntTotal.textContent   = state.stats.total;
-    } catch {
-        // stats non-critiques
+        elements.tableBody.innerHTML = `<tr class="empty-row"><td colspan="5">Erreur de chargement</td></tr>`;
     }
 }
 
 function bindEvents() {
     elements.btnLogout.addEventListener('click', logout);
 
+    elements.filterUser.addEventListener('input', debounce(() => {
+        state.filters.user = elements.filterUser.value;
+        renderTable();
+    }, 200));
+
     elements.filterEvent.addEventListener('change', () => {
-        state.filterEvent = elements.filterEvent.value;
-        state.currentPage = 1;
-        fetchLogs();
+        state.filters.event = elements.filterEvent.value;
+        renderTable();
+    });
+
+    elements.filterDateFrom.addEventListener('change', () => {
+        state.filters.dateFrom = elements.filterDateFrom.value;
+        renderTable();
+    });
+
+    elements.filterDateTo.addEventListener('change', () => {
+        state.filters.dateTo = elements.filterDateTo.value;
+        renderTable();
     });
 
     elements.btnResetFilters.addEventListener('click', () => {
-        elements.filterEvent.value = '';
-        state.filterEvent = '';
-        state.currentPage = 1;
-        fetchLogs();
+        elements.filterUser.value     = '';
+        elements.filterEvent.value    = '';
+        elements.filterDateFrom.value = '';
+        elements.filterDateTo.value   = '';
+        state.filters = { user: '', event: '', dateFrom: '', dateTo: '' };
+        renderTable();
     });
-
-    elements.btnPrevPage.addEventListener('click', () => {
-        if (state.currentPage > 1) { state.currentPage--; fetchLogs(); }
-    });
-
-    elements.btnNextPage.addEventListener('click', () => {
-        const totalPages = Math.ceil(state.totalLogs / state.limit);
-        if (state.currentPage < totalPages) { state.currentPage++; fetchLogs(); }
-    });
-
-    state.pollingInterval = setInterval(fetchLogs, 30000);
 }
 
 async function init() {
     const ok = await checkSession();
     if (!ok) { window.location.href = '/login/'; return; }
-
     bindEvents();
     await fetchLogs();
-    await fetchStats();
-
-    elements.liveIndicator.style.display = 'flex';
 }
-
-window.addEventListener('beforeunload', () => {
-    if (state.pollingInterval) clearInterval(state.pollingInterval);
-});
 
 init();
