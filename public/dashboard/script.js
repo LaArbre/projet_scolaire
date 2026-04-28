@@ -486,7 +486,7 @@ function navigateTo(page) {
         manage: '/management/',
         audit:  '/audit/',
         users:  '/admin/users/',
-        system: '/admin/system/'
+        system: '/logs/'
     };
     if (paths[page]) window.location.href = paths[page];
 }
