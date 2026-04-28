@@ -2,6 +2,7 @@ const express  = require('express');
 const bcrypt   = require('bcryptjs');
 const { getPool }   = require('../config/db');
 const { logAction } = require('../utils/auditLogger');
+const { insertLog } = require('../utils/logLogger'); // Elio
 const { isValidEmail, isValidPassword, isValidFullname } = require('../utils/validate');
 
 const router = express.Router();
@@ -95,6 +96,7 @@ router.post('/login', async (req, res) => {
                 );
             }
             await logAction(req, 'LOGIN_FAILED', 'user', user.id);
+            await insertLog(user.id, 'Échec de connexion', user.fullname || user.email);  // Elio
             return res.status(400).json({ error: true, fields: ['email', 'password'] });
         }
 
@@ -112,6 +114,7 @@ router.post('/login', async (req, res) => {
                 role:     user.role,
             };
             await logAction(req, 'LOGIN', 'user', user.id);
+            await insertLog(user.id, 'Connexion réussie', user.fullname || user.email);  // Elio
             res.json({ success: true, user: req.session.user });
         });
     } catch (err) {
@@ -120,9 +123,13 @@ router.post('/login', async (req, res) => {
     }
 });
 
-router.post('/logout', (req, res) => {
-    req.session.destroy((err) => {
+router.post('/logout', (req, res) => {  // Elio modification pour insterLog
+    const user = req.session?.user;
+    req.session.destroy(async (err) => {
         if (err) return res.status(500).json({ error: true });
+        if (user) {
+            await insertLog(user.id, 'Déconnexion', user.fullname || user.email);
+        }
         res.clearCookie('sid');
         res.json({ success: true });
     });

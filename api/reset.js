@@ -13,7 +13,7 @@ async function resetDatabase() {
     });
 
     await pool.query('SET FOREIGN_KEY_CHECKS = 0');
-    const tables = ['messages', 'attachments', 'audit_logs', 'reports', 'sessions', 'users'];
+    const tables = ['user_logs', 'logs', 'messages', 'attachments', 'audit_logs', 'reports', 'sessions', 'users'];
     for (const table of tables) {
         await pool.query(`DROP TABLE IF EXISTS ${table}`);
     }
@@ -116,6 +116,37 @@ async function resetDatabase() {
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
+
+    /*par Elio*/
+    await pool.query(`
+        CREATE TABLE logs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(100) NOT NULL UNIQUE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    await pool.query(`
+        INSERT INTO logs (name) VALUES
+        ('Connexion réussie'),
+        ('Échec de connexion'),
+        ('Consultation signalement'),
+        ('Déconnexion')
+    `);
+
+    await pool.query(`
+        CREATE TABLE user_logs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            idUser INT NOT NULL,
+            idLog INT NOT NULL,
+            info VARCHAR(255) NOT NULL,
+            date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (idUser) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (idLog) REFERENCES logs(id) ON DELETE CASCADE,
+            INDEX idx_user (idUser),
+            INDEX idx_log (idLog)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+    /*Jusque ici*/
 
     const seedUsers = [
         { fullname: 'Employé Test', email: 'employee@test.com', password: 'Test1234!', role: 'employee' },

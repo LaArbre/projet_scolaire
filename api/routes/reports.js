@@ -4,6 +4,7 @@ const { getPool }    = require('../config/db');
 const auth           = require('../middlewares/auth');
 const checkRole      = require('../middlewares/checkRole');
 const { logAction }  = require('../utils/auditLogger');
+const { insertLog }  = require('../utils/logLogger');
 const { upload, sanitizeFilename } = require('../utils/fileHandler');
 const {
     isValidCategory, isValidStatus, isPositiveInt, isValidDateOrNull, escapeLike,
@@ -156,6 +157,7 @@ router.get('/:id', auth, async (req, res) => {
         );
 
         await logAction(req, 'VIEW_REPORT', 'report', reportId);
+        await insertLog(req.session.user.id, 'Consultation signalement', `${req.session.user.fullname} — #${reportId}`);  // Elio
         res.json({ ...report, attachments, messages });
     } catch (err) {
         console.error('Erreur détail signalement:', err);
